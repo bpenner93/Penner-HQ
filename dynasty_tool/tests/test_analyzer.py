@@ -2,8 +2,22 @@
 schedule generation. Pure/synthetic -- no network."""
 from __future__ import annotations
 
-from ..analysis.optimizer import RosterValue, RPlayer
+from ..analysis.optimizer import RosterValue, RPlayer, slot_eligible
 from ..analysis import league_analysis as la
+
+
+def test_slot_eligible_idp_uses_fantasy_positions():
+    # Myles Garrett: NFL position DE, but Sleeper slot-eligibility is ['DL']
+    garrett = RPlayer("1", "Myles Garrett", "DE", 0.0, 26, True, fantasy_positions=["DL"])
+    assert slot_eligible("DL", garrett)           # fills DL via fantasy_positions
+    assert not slot_eligible("LB", garrett)
+    assert not slot_eligible("WR", garrett)
+    wr = RPlayer("2", "AJ Brown", "WR", 5000, 27, True, fantasy_positions=["WR"])
+    assert slot_eligible("WR", wr) and slot_eligible("FLEX", wr)
+    assert not slot_eligible("QB", wr)            # WR can't fill a 1QB slot
+    # no fantasy_positions -> fall back to the granular position
+    rb = RPlayer("3", "JT", "RB", 6000, 25, True)
+    assert slot_eligible("RB", rb) and slot_eligible("FLEX", rb) and not slot_eligible("DL", rb)
 
 
 def _rosters(values):

@@ -34,6 +34,7 @@ class RPlayer:
     value: float
     age: Optional[float]
     matched: bool
+    fantasy_positions: list = field(default_factory=list)  # Sleeper slot eligibility
 
 
 @dataclass
@@ -61,6 +62,21 @@ def _lineup_slots(roster_positions: list[str]) -> list[str]:
     return [s for s in roster_positions if s not in config.NON_STARTER_SLOTS]
 
 
+def slot_eligible(slot: str, player: RPlayer) -> bool:
+    """Can ``player`` fill ``slot``?
+
+    Uses Sleeper's ``fantasy_positions`` so IDP slots (DL/LB/DB) accept the
+    granular NFL positions (Myles Garrett is ``position='DE'`` but
+    ``fantasy_positions=['DL']``), plus the flex-map for FLEX / SUPER_FLEX.
+    Falls back to a direct position match.
+    """
+    fpos = player.fantasy_positions or [player.pos]
+    if slot in _FLEX_MAP:
+        elig = _FLEX_MAP[slot]
+        return player.pos in elig or any(fp in elig for fp in fpos)
+    return player.pos == slot or slot in fpos
+
+
 def _fill_lineup(players: list[RPlayer], slots: list[str], key=None) -> list[tuple[str, RPlayer]]:
     """Greedy best-value lineup fill: fixed position slots first, then flex slots.
 
@@ -72,9 +88,9 @@ def _fill_lineup(players: list[RPlayer], slots: list[str], key=None) -> list[tup
     pool = sorted(players, key=key, reverse=True)
     used: set[str] = set()
 
-    def take(eligible: set[str]) -> Optional[RPlayer]:
+    def take(slot: str) -> Optional[RPlayer]:
         for p in pool:
-            if p.sleeper_id not in used and p.pos in eligible:
+            if p.sleeper_id not in used and slot_eligible(slot, p):
                 used.add(p.sleeper_id)
                 return p
         return None
@@ -83,11 +99,11 @@ def _fill_lineup(players: list[RPlayer], slots: list[str], key=None) -> list[tup
     flex = [s for s in slots if s in _FLEX_MAP]
     starters: list[tuple[str, RPlayer]] = []
     for s in fixed:
-        p = take({s})
+        p = take(s)
         if p:
             starters.append((s, p))
     for s in flex:
-        p = take(_FLEX_MAP[s])
+        p = take(s)
         if p:
             starters.append((s, p))
     return starters
@@ -118,8 +134,10 @@ def compute_rosters(ctx, provider) -> dict[str, RosterValue]:
             # clean name (pos is a separate field; av.label carries a "(POS)"
             # suffix that would double up wherever we render name + pos)
             name = f"{meta.get('first_name', '')} {meta.get('last_name', '')}".strip()
-            rp = RPlayer(str(pid), name or av.label, meta.get("position") or "?",
-                         av.value, age, av.matched)
+            pos = meta.get("position") or "?"
+            fpos = [str(x) for x in (meta.get("fantasy_positions") or [])] or [pos]
+            rp = RPlayer(str(pid), name or av.label, pos,
+                         av.value, age, av.matched, fantasy_positions=fpos)
             rv.players.append(rp)
             if not av.matched:
                 rv.n_unmatched += 1

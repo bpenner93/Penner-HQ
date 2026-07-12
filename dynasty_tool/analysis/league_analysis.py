@@ -373,14 +373,6 @@ class LineupRec:
     opp: dict[str, str] = field(default_factory=dict)       # player_id -> opponent
 
 
-def _slot_eligible(slot: str, pos: str) -> bool:
-    if slot in _FLEX_MAP:
-        return pos in _FLEX_MAP[slot]
-    if slot in config.IDP_POSITIONS:
-        return pos in config.IDP_POSITIONS
-    return pos == slot
-
-
 def lineup_recommendation(rv: RosterValue, roster_positions: list[str],
                           close_threshold: float = 0.15,
                           weekly: Optional[dict[str, float]] = None,
@@ -392,12 +384,12 @@ def lineup_recommendation(rv: RosterValue, roster_positions: list[str],
     player_id -> this-week projected-points map from the DFS engine) to rank by
     the matchup-specific weekly projection instead -- the correct start/sit signal.
     """
+    from . import optimizer
     slots = [s for s in roster_positions if s not in config.NON_STARTER_SLOTS]
     is_weekly = weekly is not None
     score = (lambda p: weekly.get(p.sleeper_id, 0.0)) if is_weekly else (lambda p: p.value)
 
     if is_weekly:
-        from . import optimizer
         lineup = optimizer._fill_lineup(rv.players, slots, key=score)
     else:
         lineup = rv.starters
@@ -414,7 +406,7 @@ def lineup_recommendation(rv: RosterValue, roster_positions: list[str],
         if score(starter) <= 0:
             continue
         cand = next((p for p in bench
-                     if _slot_eligible(slot, p.pos) and p.sleeper_id not in used_challengers), None)
+                     if optimizer.slot_eligible(slot, p) and p.sleeper_id not in used_challengers), None)
         if cand:
             gap = (score(starter) - score(cand)) / score(starter)
             if 0 <= gap <= close_threshold:
