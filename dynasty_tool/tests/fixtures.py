@@ -139,10 +139,8 @@ class FakeClient:
         return PLAYERS_META
 
 
-def make_test_provider(qb_format: int = 1):
-    """A CurrentValueProvider over tiny in-memory frames (no network)."""
-    from ..value.current_provider import CurrentValueProvider
-
+def make_test_frames():
+    """The tiny in-memory DynastyProcess frames (players, picks, ids)."""
     players_df = pd.DataFrame([
         {"player": "Star Wr", "pos": "WR", "ecr_1qb": 1.0, "ecr_2qb": 1.0,
          "value_1qb": 9000, "value_2qb": 9000, "scrape_date": "2026-07-03", "fp_id": 1000},
@@ -163,4 +161,12 @@ def make_test_provider(qb_format: int = 1):
         {"sleeper_id": 50, "fantasypros_id": 5000, "name": "Traded Player", "ktc_id": None},
         # NOTE: no row for sleeper_id 999 -> must be reported unmatched, not hidden.
     ])
+    return players_df, picks_df, ids_df
+
+
+def make_test_provider(qb_format: int = 1):
+    """A CurrentValueProvider over tiny in-memory frames (no network)."""
+    from ..value.current_provider import CurrentValueProvider
+
+    players_df, picks_df, ids_df = make_test_frames()
     return CurrentValueProvider(players_df, picks_df, ids_df, qb_format=qb_format)

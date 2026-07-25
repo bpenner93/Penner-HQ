@@ -72,8 +72,28 @@ Everything above is also packaged as a dark, FantasyPros-"My Playbook"-style
 **Streamlit dashboard** — league switcher + team switcher + grouped nav all in
 the left sidebar; player profiles with headshots, ECR, and injury badges;
 positional-strength radar; title-odds bars; contention map; playoff race;
-trades; waivers; the one-click MFL set-lineup button; the value-flow funnel;
-and a cross-league portfolio with player exposure.
+trades; the trade calculator; waivers; the one-click MFL set-lineup button;
+the value-flow funnel; and a cross-league portfolio with player exposure.
+
+### Trade Calc — a KTC-style calculator that knows your league
+
+Build a trade on both sides from a type-ahead search over **every** valued
+player plus every pick label the source covers (`analysis/trade_calc.py`), and
+get the same fairness verdict the `evaluate` CLI gives. Two things a
+KeepTradeCut-style calculator can't do, because this one has the league loaded:
+
+* **ownership** — each search result shows who rosters that player right now,
+  and each side lists its own team's assets first;
+* **roster impact** — both starting lineups are re-filled from the league's real
+  slots after the swap, so you see the *lineup* delta, not just the value delta
+  (a 5,767 WR who only upgrades your starter by 2,463 is exactly the trade the
+  raw value chart talks you into).
+
+Picks carry value but never a lineup slot, and that's reported separately rather
+than blended in. Lopsided? It suggests the assets from the light side's roster
+that land closest to the gap. 1QB/Superflex follows the league and can be
+overridden; redraft/keeper leagues value assets at projected points from this
+project's own engine instead, and hide picks (not a redraft asset).
 
 ```bash
 # one-click: double-click dynasty_tool/start_app.bat   (opens localhost:8504)
@@ -148,8 +168,9 @@ in `dynasty_tool/cache/`.
 dynasty_tool/
   ingest/   sleeper_client · chain · identity · trades · drafts · context
   value/    provider (interface) · current_provider · historical_provider (stub) · assets
-  analysis/ common · trade_eval · value_flow · optimizer
-            league_analysis (rankings/odds/waivers/matchups/SOS) · dashboard · portfolio
+  analysis/ common · trade_eval · trade_calc (interactive calculator core) · value_flow
+            optimizer · league_analysis (rankings/odds/waivers/matchups/SOS)
+            dashboard · portfolio
   cli.py    argparse entrypoint (ingest / evaluate / flow / optimize / analyze / portfolio)
   cache/    on-disk JSON + CSV cache (one fetch, replayed)
   tests/    R1–R4 + join-coverage + analyzer suite (hermetic, no network)

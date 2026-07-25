@@ -149,6 +149,21 @@ class CurrentValueProvider(ValueProvider):
         self.unmatched_players.add(sid)
         return 0.0, False
 
+    def fp_to_sleeper(self) -> dict[str, str]:
+        """Inverse of the validated sleeper->fp join (first mapping wins).
+
+        For asset pickers that start from the values file and need the sleeper
+        id back (headshots, roster matching).
+        """
+        out: dict[str, str] = {}
+        for sid, fp in self._sleeper_to_fp.items():
+            out.setdefault(fp, sid)
+        return out
+
+    def pick_labels(self) -> dict[str, float]:
+        """Every pick label this source covers -> its value on the player scale."""
+        return dict(self._pick_label_value)
+
     @staticmethod
     def _ord(rnd: int) -> str:
         return _ORD.get(int(rnd), f"{int(rnd)}th")
