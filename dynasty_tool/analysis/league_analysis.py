@@ -558,6 +558,9 @@ class TradePackage:
     get_value: float
     give_value: float
     competitor: bool
+    # player ids, so a UI can load the package straight into the trade calculator
+    get_ids: list[str] = field(default_factory=list)
+    give_ids: list[str] = field(default_factory=list)
 
     @property
     def pct_gap(self) -> float:
@@ -632,6 +635,8 @@ def propose_trades(rosters: dict[str, RosterValue], target_uid: str,
             get_value=target_v,
             give_value=acc,
             competitor=other.starter_value >= median_starter,
+            get_ids=[str(target_player.sleeper_id)],
+            give_ids=[str(p.sleeper_id) for p in give],
         ))
     packages.sort(key=lambda pk: (pk.get_value, -pk.pct_gap), reverse=True)
     return packages[:max_packages]

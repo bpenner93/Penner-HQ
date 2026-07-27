@@ -72,10 +72,16 @@ Everything above is also packaged as a dark, FantasyPros-"My Playbook"-style
 **Streamlit dashboard** — league switcher + team switcher + grouped nav all in
 the left sidebar; player profiles with headshots, ECR, and injury badges;
 positional-strength radar; title-odds bars; contention map; playoff race;
-trades; the trade calculator; waivers; the one-click MFL set-lineup button;
+the trade center; waivers; the one-click MFL set-lineup button;
 the value-flow funnel; and a cross-league portfolio with player exposure.
 
-### Trade Calc — a KTC-style calculator that knows your league
+### Trade center — a KTC-style calculator that knows your league
+
+One page, three tabs: **Calculator**, **Suggested packages**, **League trade
+block**. The suggested packages aren't a dead end — each has an *Open in
+calculator* button that loads both sides (and both teams) into the builder, so
+the auto-proposal becomes the starting point you tune rather than a take-it-or-
+leave-it card.
 
 Build a trade on both sides from a type-ahead search over **every** valued
 player plus every pick label the source covers (`analysis/trade_calc.py`), and

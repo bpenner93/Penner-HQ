@@ -434,8 +434,7 @@ NAV = [
     ("LINEUP", [("📊", "Dashboard"), ("👥", "My Team"), ("⚡", "Start/Sit"),
                 ("🆚", "Matchups")]),
     ("SEASON", [("🏆", "Playoff Race"), ("📈", "History & SOS")]),
-    ("MOVES", [("🔄", "Trades"), ("🧮", "Trade Calc"), ("➕", "Waivers"),
-               ("🎯", "Set Lineup")]),
+    ("MOVES", [("🔄", "Trades"), ("➕", "Waivers"), ("🎯", "Set Lineup")]),
     ("LEAGUE", [("💸", "Value Flow"), ("🌐", "Portfolio")]),
 ]
 
@@ -511,6 +510,8 @@ with st.sidebar:
                 + "</div>", unsafe_allow_html=True)
 
 page = st.session_state.page
+if page not in {n for _g, items in NAV for _i, n in items}:
+    page = st.session_state.page = "Dashboard"   # a page that no longer exists
 me = A.rosters[view_uid]
 my_sim = next((s for s in A.sim if s.user_id == view_uid), None)
 my_rank = uids.index(view_uid) + 1
@@ -776,198 +777,243 @@ elif page == "History & SOS":
 # ===========================================================================
 elif page == "Trades":
     st.markdown(f"## Trade center — {me.display}")
-    pkgs = la.propose_trades(A.rosters, view_uid)
-    if not pkgs:
-        st.info("No cleanly-balanced surplus-for-surplus packages right now — "
-                "your need may require an overpay or a pick sweetener.", icon="🤝")
-    for p in pkgs:
-        tag = "competitor" if p.competitor else "non-competitor"
-        tagc = STATUS["serious"] if p.competitor else SERIES["aqua"]
-        get = ", ".join(f"<b>{n}</b> <span style='color:{INK['muted']}'>({ps} "
-                        f"{v:,.0f})</span>" for n, ps, v in p.you_get)
-        give = ", ".join(f"<b>{n}</b> <span style='color:{INK['muted']}'>({ps} "
-                         f"{v:,.0f})</span>" for n, ps, v in p.you_give)
-        st.markdown(
-            f"<div class='hq-card'><div class='hq-row' style='border:0'>"
-            f"<span>with <b>{p.partner_display}</b> "
-            f"<span class='hq-badge' style='background:{tagc}'>{tag}</span></span>"
-            f"<span style='color:{INK['muted']}'>gap {p.pct_gap*100:.0f}%</span></div>"
-            f"<div class='hq-row'><span>YOU GET</span><span>{get}</span></div>"
-            f"<div class='hq-row' style='border:0'><span>YOU GIVE</span>"
-            f"<span>{give}</span></div></div>", unsafe_allow_html=True)
+    lid = str(lg["league_id"])
+    k_a, k_b = f"tc_a_{lid}", f"tc_b_{lid}"                 # the two asset pickers
+    k_ta, k_tb = f"tc_team_a_{lid}", f"tc_team_b_{lid}"     # the two team pickers
+    k_qb = f"tc_qb_{lid}"
 
-    st.markdown("<div class='hq-h'>League trade block — needs & surplus</div>",
-                unsafe_allow_html=True)
-    st.dataframe(pd.DataFrame([{
-        "team": A.rosters[u].display,
-        "needs": ", ".join(k for k, v in sorted(A.needs[u].items(),
-                           key=lambda kv: kv[1], reverse=True) if v > 0) or "—",
-        "surplus": ", ".join(k for k, v in sorted(A.surplus[u].items(),
-                             key=lambda kv: kv[1], reverse=True) if v > 500) or "—",
-    } for u in uids]), hide_index=True, width="stretch")
+    # A package loaded from the Suggested tab lands here, and must be applied
+    # BEFORE the widgets exist — Streamlit forbids writing a widget's key once
+    # that widget has been instantiated in the same run.
+    pending = st.session_state.pop("_tc_load", None)
+    if pending:
+        st.session_state[k_ta], st.session_state[k_tb] = pending["team_a"], pending["team_b"]
+        st.session_state[k_a], st.session_state[k_b] = pending["send_a"], pending["send_b"]
 
-# ===========================================================================
-elif page == "Trade Calc":
-    st.markdown("## Trade calculator")
     unit = "proj pts" if A.redraft else "value"
-
-    s1, s2, s3 = st.columns([1.2, 1.2, 1])
-    uid_a = s1.selectbox("Team A", uids, index=uids.index(view_uid),
-                         format_func=lambda u: A.rosters[u].display)
-    others = [u for u in uids if u != uid_a]
-    uid_b = s2.selectbox("Team B", others, format_func=lambda u: A.rosters[u].display)
-    if A.redraft:
-        qb_fmt = A.qb_format
-        s3.markdown("<div class='hq-note'>Redraft — assets valued at this season's "
-                    "projected points from your own engine.</div>",
-                    unsafe_allow_html=True)
-    else:
-        qb_fmt = 2 if s3.radio("Value format", ["1QB", "Superflex"], horizontal=True,
-                               index=1 if A.qb_format == 2 else 0) == "Superflex" else 1
-
+    qb_fmt = (A.qb_format if A.redraft else
+              (2 if st.session_state.get(k_qb, "Superflex" if A.qb_format == 2
+                                         else "1QB") == "Superflex" else 1))
     uni = tc.extend_with_rosters(trade_universe(bool(A.redraft), int(qb_fmt)), A.rosters)
     owners = tc.owner_map(A.rosters)
     by_value = sorted(uni, key=lambda k: -uni[k].value)
 
-    def opts_for(uid: str) -> list[str]:
-        """That team's assets first (so their roster is one click away), then everyone."""
-        mine = [k for k in tc.roster_asset_keys(A.rosters[uid]) if k in uni]
-        seen = set(mine)
-        return mine + [k for k in by_value if k not in seen]
+    t_calc, t_sugg, t_block = st.tabs(["🧮 Calculator", "🤝 Suggested packages",
+                                       "📋 League trade block"])
 
-    def fmt_asset(k: str) -> str:
-        a = uni[k]
-        loc = f" {a.team}" if a.team else ""
-        who = owners.get(k)
-        return (f"{a.label} · {a.pos}{loc} · {a.value:,.0f}"
-                + (f" · {who}" if who else ""))
+    # -- tab 1: the calculator ----------------------------------------------
+    with t_calc:
+        s1, s2, s3 = st.columns([1.2, 1.2, 1])
+        uid_a = s1.selectbox("Team A", uids, index=uids.index(view_uid), key=k_ta,
+                             format_func=lambda u: A.rosters[u].display)
+        b_default = next((i for i, u in enumerate(uids) if u != view_uid), 0)
+        uid_b = s2.selectbox("Team B", uids, index=b_default, key=k_tb,
+                             format_func=lambda u: A.rosters[u].display)
+        if A.redraft:
+            s3.markdown("<div class='hq-note'>Redraft — assets valued at this season's "
+                        "projected points from your own engine.</div>",
+                        unsafe_allow_html=True)
+        else:
+            s3.radio("Value format", ["1QB", "Superflex"], horizontal=True, key=k_qb,
+                     index=1 if A.qb_format == 2 else 0)
 
-    def asset_rows(assets, total: float, side_name: str) -> str:
-        rows = "".join(
-            f"<div class='hq-asset'>{pos_badge(a.pos)}<span>{a.label}</span>"
-            f"<span class='who'>{owners.get(a.key, 'free agent' if a.kind == 'player' else '')}"
-            f"</span><span class='val'>{a.value:,.0f}</span></div>" for a in assets)
-        if not rows:
-            rows = ("<div class='hq-asset' style='color:var(--muted)'>nothing yet — "
-                    "search above</div>")
-        return (f"<div class='hq-card'>{rows}<div class='hq-row' style='border:0;"
-                f"padding-top:10px'><b>{side_name} sends</b>"
-                f"<b>{total:,.0f} {unit}</b></div></div>")
+        def opts_for(uid: str) -> list[str]:
+            """That team's assets first (their roster is one click away), then everyone."""
+            mine = [k for k in tc.roster_asset_keys(A.rosters[uid]) if k in uni]
+            seen = set(mine)
+            return mine + [k for k in by_value if k not in seen]
 
-    ca, cb = st.columns(2)
-    disp_a, disp_b = A.rosters[uid_a].display, A.rosters[uid_b].display
-    lid = str(lg["league_id"])
-    for wkey in (f"tc_a_{lid}", f"tc_b_{lid}"):
-        # a roster move between refreshes can retire a key; drop it rather than
-        # let Streamlit raise on a selection that is no longer an option
-        if wkey in st.session_state:
-            st.session_state[wkey] = [k for k in st.session_state[wkey] if k in uni]
-    with ca:
-        st.markdown(f"<div class='hq-h'>{disp_a} sends</div>", unsafe_allow_html=True)
-        sel_a = st.multiselect("side a", opts_for(uid_a), format_func=fmt_asset,
-                               key=f"tc_a_{lid}", label_visibility="collapsed",
-                               placeholder="Add a player or pick…")
-    with cb:
-        st.markdown(f"<div class='hq-h'>{disp_b} sends</div>", unsafe_allow_html=True)
-        sel_b = st.multiselect("side b", opts_for(uid_b), format_func=fmt_asset,
-                               key=f"tc_b_{lid}", label_visibility="collapsed",
-                               placeholder="Add a player or pick…")
+        def fmt_asset(k: str) -> str:
+            a = uni[k]
+            loc = f" {a.team}" if a.team else ""
+            who = owners.get(k)
+            return (f"{a.label} · {a.pos}{loc} · {a.value:,.0f}"
+                    + (f" · {who}" if who else ""))
 
-    assets_a = [uni[k] for k in sel_a]
-    assets_b = [uni[k] for k in sel_b]
-    ev = tc.evaluate(assets_a, assets_b, basis=A.basis, qb_format=qb_fmt,
-                     num_teams=len(uids), name_a=disp_a, name_b=disp_b)
-    ca.markdown(asset_rows(assets_a, ev.side_a.total, disp_a), unsafe_allow_html=True)
-    cb.markdown(asset_rows(assets_b, ev.side_b.total, disp_b), unsafe_allow_html=True)
+        def asset_rows(assets, total: float, side_name: str) -> str:
+            rows = "".join(
+                f"<div class='hq-asset'>{pos_badge(a.pos)}<span>{a.label}</span>"
+                f"<span class='who'>{owners.get(a.key, 'free agent' if a.kind == 'player' else '')}"
+                f"</span><span class='val'>{a.value:,.0f}</span></div>" for a in assets)
+            if not rows:
+                rows = ("<div class='hq-asset' style='color:var(--muted)'>nothing yet — "
+                        "search above</div>")
+            return (f"<div class='hq-card'>{rows}<div class='hq-row' style='border:0;"
+                    f"padding-top:10px'><b>{side_name} sends</b>"
+                    f"<b>{total:,.0f} {unit}</b></div></div>")
 
-    if not assets_a and not assets_b:
-        st.info("Add assets to both sides — search by name, or scroll: each side's "
-                "own roster is listed first. Picks are in the same box "
-                "(type “2027” or “1.05”).", icon="🧮")
-    else:
-        # who nets value: the side RECEIVING the larger package
-        win = tc.winner(ev)
-        tot = ev.side_a.total + ev.side_b.total
-        pa = (ev.side_a.total / tot * 100) if tot > 0 else 50.0
-        st.markdown(
-            f"<div class='hq-split'>"
-            f"<div style='width:{pa:.1f}%;background:{SERIES['blue']}'>"
-            f"{disp_a} {ev.side_a.total:,.0f}</div>"
-            f"<div style='width:{100-pa:.1f}%;background:{SERIES['aqua']};"
-            f"justify-content:flex-end'>{ev.side_b.total:,.0f} {disp_b}</div></div>",
-            unsafe_allow_html=True)
-        vc = {"EVEN": STATUS["good"], "SLIGHT EDGE": STATUS["warning"],
-              "LOPSIDED": STATUS["critical"]}[ev.verdict]
-        tail = (f"within {dt.FAIRNESS_EVEN*100:.0f}% — fair deal" if ev.verdict == "EVEN"
-                else f"<b>{win}</b> nets {abs(ev.delta):,.0f} {unit} "
-                     f"({ev.pct_gap*100:.0f}% of the larger side)")
-        st.markdown(f"<div style='margin:10px 0 4px'>"
-                    f"<span class='hq-badge' style='background:{vc}'>{ev.verdict}</span>"
-                    f"<span style='color:{INK['secondary']};font-size:14px'>{tail}</span>"
-                    f"</div>", unsafe_allow_html=True)
+        ca, cb = st.columns(2)
+        disp_a, disp_b = A.rosters[uid_a].display, A.rosters[uid_b].display
+        with ca:
+            st.markdown(f"<div class='hq-h'>{disp_a} sends</div>", unsafe_allow_html=True)
+            sel_a = st.multiselect("side a", opts_for(uid_a), format_func=fmt_asset,
+                                   key=k_a, label_visibility="collapsed",
+                                   placeholder="Add a player or pick…")
+        with cb:
+            st.markdown(f"<div class='hq-h'>{disp_b} sends</div>", unsafe_allow_html=True)
+            sel_b = st.multiselect("side b", opts_for(uid_b), format_func=fmt_asset,
+                                   key=k_b, label_visibility="collapsed",
+                                   placeholder="Add a player or pick…")
 
-        # -- roster impact: re-fill both starting lineups after the swap ------
-        st.markdown("<div class='hq-h' style='margin-top:18px'>Roster impact — does it "
-                    "change your starting lineup?</div>", unsafe_allow_html=True)
-        ia = tc.roster_impact(A.rosters[uid_a], A.roster_positions, assets_b, assets_a)
-        ib = tc.roster_impact(A.rosters[uid_b], A.roster_positions, assets_a, assets_b)
-        ica, icb = st.columns(2)   # a fresh row, so the tiles sit under their heading
-        for col, disp, imp in ((ica, disp_a, ia), (icb, disp_b, ib)):
-            with col:
-                t1, t2 = st.columns(2)
-                tile(t1, f"{disp} · starters", wh.fmt_k(imp.starter_after),
-                     f"{imp.starter_delta:+,.0f} from {wh.fmt_k(imp.starter_before)}")
-                tile(t2, f"{disp} · all assets", wh.fmt_k(imp.total_after),
-                     f"{imp.total_delta:+,.0f} from {wh.fmt_k(imp.total_before)}")
-                moves = "".join(
-                    f"<div class='hq-row'><span>{'🟢 into lineup' if into else '🔴 out of lineup'}"
-                    f"</span><span>{pos_badge(p.pos)}<b>{p.name}</b></span></div>"
-                    for into, p in ([(True, p) for p in imp.lineup_in]
-                                    + [(False, p) for p in imp.lineup_out]))
-                if imp.picks_in or imp.picks_out:
-                    moves += (f"<div class='hq-row'><span>picks</span><span>"
-                              f"{imp.picks_in - imp.picks_out:+,.0f} {unit} "
-                              f"(no lineup slot)</span></div>")
-                st.markdown(f"<div class='hq-card'>{moves or ''}"
-                            + ("" if moves else "<span style='color:var(--muted);"
-                               "font-size:13px'>starting lineup unchanged</span>")
-                            + "</div>", unsafe_allow_html=True)
+        assets_a = [uni[k] for k in sel_a]
+        assets_b = [uni[k] for k in sel_b]
+        ev = tc.evaluate(assets_a, assets_b, basis=A.basis, qb_format=qb_fmt,
+                         num_teams=len(uids), name_a=disp_a, name_b=disp_b)
+        ca.markdown(asset_rows(assets_a, ev.side_a.total, disp_a), unsafe_allow_html=True)
+        cb.markdown(asset_rows(assets_b, ev.side_b.total, disp_b), unsafe_allow_html=True)
 
-        rid_a = {str(p.sleeper_id) for p in A.rosters[uid_a].players}
-        rid_b = {str(p.sleeper_id) for p in A.rosters[uid_b].players}
-        stray = ([a.label for a in assets_a if a.kind == "player" and a.player_id not in rid_a]
-                 + [a.label for a in assets_b if a.kind == "player" and a.player_id not in rid_b])
-        if stray:
-            st.markdown("<div class='hq-note'>Hypothetical: " + ", ".join(stray)
-                        + " isn't on the sending team's roster, so roster impact counts "
-                        "them as an add only.</div>", unsafe_allow_html=True)
+        if uid_a == uid_b:
+            st.warning("Team A and Team B are the same team — pick a trade partner.",
+                       icon="🔁")
+        elif not assets_a and not assets_b:
+            st.info("Add assets to both sides — search by name, or scroll: each side's "
+                    "own roster is listed first. Picks are in the same box "
+                    "(type “2027” or “1.05”). The Suggested tab can fill this in "
+                    "for you.", icon="🧮")
+        else:
+            # who nets value: the side RECEIVING the larger package
+            win = tc.winner(ev)
+            tot = ev.side_a.total + ev.side_b.total
+            pa = (ev.side_a.total / tot * 100) if tot > 0 else 50.0
+            st.markdown(
+                f"<div class='hq-split'>"
+                f"<div style='width:{pa:.1f}%;background:{SERIES['blue']}'>"
+                f"{disp_a} {ev.side_a.total:,.0f}</div>"
+                f"<div style='width:{100-pa:.1f}%;background:{SERIES['aqua']};"
+                f"justify-content:flex-end'>{ev.side_b.total:,.0f} {disp_b}</div></div>",
+                unsafe_allow_html=True)
+            vc = {"EVEN": STATUS["good"], "SLIGHT EDGE": STATUS["warning"],
+                  "LOPSIDED": STATUS["critical"]}[ev.verdict]
+            tail = (f"within {dt.FAIRNESS_EVEN*100:.0f}% — fair deal" if ev.verdict == "EVEN"
+                    else f"<b>{win}</b> nets {abs(ev.delta):,.0f} {unit} "
+                         f"({ev.pct_gap*100:.0f}% of the larger side)")
+            st.markdown(f"<div style='margin:10px 0 4px'>"
+                        f"<span class='hq-badge' style='background:{vc}'>{ev.verdict}</span>"
+                        f"<span style='color:{INK['secondary']};font-size:14px'>{tail}</span>"
+                        f"</div>", unsafe_allow_html=True)
 
-        # -- what closes the gap ---------------------------------------------
-        if ev.verdict != "EVEN":
-            light_uid = uid_a if ev.delta < 0 else uid_b
-            pool = [uni[k] for k in tc.roster_asset_keys(A.rosters[light_uid]) if k in uni]
-            if not A.redraft:
-                pool += [a for a in uni.values() if a.kind == "pick"]
-            sugg = tc.suggest_sweeteners(pool, abs(ev.delta),
-                                         exclude=set(sel_a) | set(sel_b))
-            if sugg:
-                st.markdown(f"<div class='hq-h' style='margin-top:14px'>To even it, "
-                            f"{A.rosters[light_uid].display} adds ~{abs(ev.delta):,.0f}"
-                            f"</div>" + " ".join(
-                                f"<span class='hq-badge' style='background:"
-                                f"{POS.get(s.pos, SERIES['violet'])}'>{s.label} · "
-                                f"{s.value:,.0f}</span>" for s in sugg),
-                            unsafe_allow_html=True)
+            # -- roster impact: re-fill both starting lineups after the swap --
+            st.markdown("<div class='hq-h' style='margin-top:18px'>Roster impact — does "
+                        "it change your starting lineup?</div>", unsafe_allow_html=True)
+            ia = tc.roster_impact(A.rosters[uid_a], A.roster_positions, assets_b, assets_a)
+            ib = tc.roster_impact(A.rosters[uid_b], A.roster_positions, assets_a, assets_b)
+            ica, icb = st.columns(2)   # a fresh row, so the tiles sit under their heading
+            for col, disp, imp in ((ica, disp_a, ia), (icb, disp_b, ib)):
+                with col:
+                    t1, t2 = st.columns(2)
+                    tile(t1, f"{disp} · starters", wh.fmt_k(imp.starter_after),
+                         f"{imp.starter_delta:+,.0f} from {wh.fmt_k(imp.starter_before)}")
+                    tile(t2, f"{disp} · all assets", wh.fmt_k(imp.total_after),
+                         f"{imp.total_delta:+,.0f} from {wh.fmt_k(imp.total_before)}")
+                    moves = "".join(
+                        f"<div class='hq-row'><span>{'🟢 into lineup' if into else '🔴 out of lineup'}"
+                        f"</span><span>{pos_badge(p.pos)}<b>{p.name}</b></span></div>"
+                        for into, p in ([(True, p) for p in imp.lineup_in]
+                                        + [(False, p) for p in imp.lineup_out]))
+                    if imp.picks_in or imp.picks_out:
+                        moves += (f"<div class='hq-row'><span>picks</span><span>"
+                                  f"{imp.picks_in - imp.picks_out:+,.0f} {unit} "
+                                  f"(no lineup slot)</span></div>")
+                    st.markdown(f"<div class='hq-card'>{moves or ''}"
+                                + ("" if moves else "<span style='color:var(--muted);"
+                                   "font-size:13px'>starting lineup unchanged</span>")
+                                + "</div>", unsafe_allow_html=True)
 
-        with st.expander("📋 Copy this trade"):
-            st.code(tc.trade_summary_text(ev, assets_a, assets_b, unit=unit),
-                    language=None)
+            rid_a = {str(p.sleeper_id) for p in A.rosters[uid_a].players}
+            rid_b = {str(p.sleeper_id) for p in A.rosters[uid_b].players}
+            stray = ([a.label for a in assets_a
+                      if a.kind == "player" and a.player_id not in rid_a]
+                     + [a.label for a in assets_b
+                        if a.kind == "player" and a.player_id not in rid_b])
+            if stray:
+                st.markdown("<div class='hq-note'>Hypothetical: " + ", ".join(stray)
+                            + " isn't on the sending team's roster, so roster impact "
+                            "counts them as an add only.</div>", unsafe_allow_html=True)
 
-    st.markdown(f"<div class='hq-note'>Values: {A.basis} basis · {qb_fmt}QB"
-                + (f" · DynastyProcess {bundle['scrape']}" if bundle['scrape'] else "")
-                + ". Roster impact re-fills each lineup with the league's real slots "
-                "(FLEX/SUPER_FLEX included); picks carry value but no lineup slot."
-                "</div>", unsafe_allow_html=True)
+            # -- what closes the gap -----------------------------------------
+            if ev.verdict != "EVEN":
+                light_uid = uid_a if ev.delta < 0 else uid_b
+                pool = [uni[k] for k in tc.roster_asset_keys(A.rosters[light_uid])
+                        if k in uni]
+                if not A.redraft:
+                    pool += [a for a in uni.values() if a.kind == "pick"]
+                sugg = tc.suggest_sweeteners(pool, abs(ev.delta),
+                                             exclude=set(sel_a) | set(sel_b))
+                if sugg:
+                    st.markdown(f"<div class='hq-h' style='margin-top:14px'>To even it, "
+                                f"{A.rosters[light_uid].display} adds ~{abs(ev.delta):,.0f}"
+                                f"</div>" + " ".join(
+                                    f"<span class='hq-badge' style='background:"
+                                    f"{POS.get(s.pos, SERIES['violet'])}'>{s.label} · "
+                                    f"{s.value:,.0f}</span>" for s in sugg),
+                                unsafe_allow_html=True)
+                    if any(s.kind == "pick" for s in sugg):
+                        st.markdown("<div class='hq-note'>Picks here are priced from the "
+                                    "league-wide curve — check the sender actually owns "
+                                    "that one.</div>", unsafe_allow_html=True)
+
+            with st.expander("📋 Copy this trade"):
+                st.code(tc.trade_summary_text(ev, assets_a, assets_b, unit=unit),
+                        language=None)
+
+        st.markdown(f"<div class='hq-note'>Values: {A.basis} basis · {qb_fmt}QB"
+                    + (f" · DynastyProcess {bundle['scrape']}" if bundle['scrape'] else "")
+                    + ". Roster impact re-fills each lineup with the league's real slots "
+                    "(FLEX/SUPER_FLEX included); picks carry value but no lineup slot."
+                    "</div>", unsafe_allow_html=True)
+
+    # -- tab 2: auto-proposed packages, each loadable into the calculator ----
+    with t_sugg:
+        pkgs = la.propose_trades(A.rosters, view_uid)
+        if not pkgs:
+            st.info("No cleanly-balanced surplus-for-surplus packages right now — "
+                    "your need may require an overpay or a pick sweetener. Build one "
+                    "by hand in the Calculator tab.", icon="🤝")
+        for i, p in enumerate(pkgs):
+            tag = "competitor" if p.competitor else "non-competitor"
+            tagc = STATUS["serious"] if p.competitor else SERIES["aqua"]
+            get = ", ".join(f"<b>{n}</b> <span style='color:{INK['muted']}'>({ps} "
+                            f"{v:,.0f})</span>" for n, ps, v in p.you_get)
+            give = ", ".join(f"<b>{n}</b> <span style='color:{INK['muted']}'>({ps} "
+                             f"{v:,.0f})</span>" for n, ps, v in p.you_give)
+            st.markdown(
+                f"<div class='hq-card'><div class='hq-row' style='border:0'>"
+                f"<span>with <b>{p.partner_display}</b> "
+                f"<span class='hq-badge' style='background:{tagc}'>{tag}</span></span>"
+                f"<span style='color:{INK['muted']}'>gap {p.pct_gap*100:.0f}%</span></div>"
+                f"<div class='hq-row'><span>YOU GET</span><span>{get}</span></div>"
+                f"<div class='hq-row' style='border:0'><span>YOU GIVE</span>"
+                f"<span>{give}</span></div></div>", unsafe_allow_html=True)
+            if st.button("🧮 Open in calculator", key=f"tc_load_{i}"):
+                st.session_state["_tc_load"] = {
+                    "team_a": view_uid, "team_b": p.partner_uid,
+                    "send_a": [k for k in (tc.PLAYER_PREFIX + i for i in p.give_ids)
+                               if k in uni],
+                    "send_b": [k for k in (tc.PLAYER_PREFIX + i for i in p.get_ids)
+                               if k in uni],
+                }
+                st.rerun()
+        if pkgs:
+            st.markdown("<div class='hq-note'>Packages pair their surplus at your "
+                        "biggest need against your surplus at theirs, inside a 10% "
+                        "value gap. Open one in the calculator to see what it does to "
+                        "both starting lineups, then tune it.</div>",
+                        unsafe_allow_html=True)
+
+    # -- tab 3: the league-wide block ---------------------------------------
+    with t_block:
+        st.markdown("<div class='hq-h'>Needs & surplus, whole league</div>",
+                    unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame([{
+            "team": A.rosters[u].display,
+            "needs": ", ".join(k for k, v in sorted(A.needs[u].items(),
+                               key=lambda kv: kv[1], reverse=True) if v > 0) or "—",
+            "surplus": ", ".join(k for k, v in sorted(A.surplus[u].items(),
+                                 key=lambda kv: kv[1], reverse=True) if v > 500) or "—",
+        } for u in uids]), hide_index=True, width="stretch")
+        st.markdown("<div class='hq-note'>Need = starting spot below the league median "
+                    "at that position. Surplus = value beyond the starters.</div>",
+                    unsafe_allow_html=True)
 
 # ===========================================================================
 elif page == "Waivers":
