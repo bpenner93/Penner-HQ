@@ -151,6 +151,16 @@ def _one(client: NewsClient, spec: SourceSpec) -> tuple[list[NewsItem], SourceHe
                                     error="empty response", from_cache=cached,
                                     kind=spec.kind, team=spec.team)
         items = PARSERS[spec.kind](payload, spec)
+        if not items:
+            # A source that fetched fine but yielded nothing is not healthy — it
+            # is the exact shape of a wrong handle, a dead feed, or an API that
+            # answered 200 with an error body. Reporting it green is how a
+            # broken integration hides behind a full-looking page.
+            return [], SourceHealth(
+                spec.id, spec.label, ok=False,
+                error=f"fetched {len(payload):,} bytes but parsed 0 items — "
+                      f"starts: {payload.strip()[:120]!r}",
+                from_cache=cached, kind=spec.kind, team=spec.team)
         return items, SourceHealth(spec.id, spec.label, ok=True, n_items=len(items),
                                    from_cache=cached, kind=spec.kind, team=spec.team)
     except Exception as exc:

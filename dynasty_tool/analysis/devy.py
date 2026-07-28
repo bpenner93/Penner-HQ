@@ -43,6 +43,30 @@ class Prospect:
     recruit_year: Optional[int] = None
     stars: Optional[int] = None
     rating: Optional[float] = None
+    prev_usage: Optional[float] = None   # same player, prior season
+
+    @property
+    def usage_delta(self) -> Optional[float]:
+        """Change in offensive share year over year.
+
+        This is the trend that matters for a devy hold: a sophomore going from
+        12% to 28% of his offence is the profile that turns into draft capital,
+        and it shows up a full year before any big board reflects it.
+        """
+        if self.prev_usage is None:
+            return None
+        return round(self.usage - self.prev_usage, 4)
+
+    @property
+    def trend(self) -> str:
+        d = self.usage_delta
+        if d is None:
+            return "new"          # no prior season: a true freshman or a transfer
+        if d >= 0.05:
+            return "▲▲" if d >= 0.12 else "▲"
+        if d <= -0.05:
+            return "▼▼" if d <= -0.12 else "▼"
+        return "—"
 
     @property
     def draft_class(self) -> Optional[int]:
@@ -127,9 +151,31 @@ def _median(values: Sequence[float]) -> float:
     return vals[mid] if len(vals) % 2 else (vals[mid - 1] + vals[mid]) / 2.0
 
 
+def index_usage(usage_rows: Iterable[dict]) -> dict[str, float]:
+    """{key: overall usage} for a season, keyed by CFBD athlete id when present
+    and by name+team otherwise — so a prior season can be matched even for
+    players whose id is missing."""
+    out: dict[str, float] = {}
+    for row in usage_rows or []:
+        if not isinstance(row, dict):
+            continue
+        u = row.get("usage")
+        overall = float((u or {}).get("overall") or 0.0) if isinstance(u, dict) else 0.0
+        if not overall:
+            continue
+        aid = str(row.get("id") or "").strip()
+        if aid:
+            out[f"id:{aid}"] = overall
+        name, team = str(row.get("name") or ""), str(row.get("team") or "")
+        if name and team:
+            out.setdefault(_key(name, team), overall)
+    return out
+
+
 def build_board(usage_rows: Iterable[dict], recruit_index: dict[str, dict],
                 season: int, positions: Sequence[str] = DEVY_POSITIONS,
-                min_usage: float = 0.08) -> tuple[list[Prospect], dict]:
+                min_usage: float = 0.08,
+                prior_usage: Optional[dict[str, float]] = None) -> tuple[list[Prospect], dict]:
     """(ranked prospects, join report).
 
     ``min_usage`` drops the long tail of players with a handful of touches, where
@@ -162,12 +208,18 @@ def build_board(usage_rows: Iterable[dict], recruit_index: dict[str, dict],
         if rec:
             matched += 1
         year = (rec or {}).get("year")
+        prev = None
+        if prior_usage:
+            prev = (prior_usage.get(f"id:{aid}") if aid else None)
+            if prev is None:
+                prev = prior_usage.get(_key(name, team))
         staged.append({
             "name": name, "position": pos, "team": team,
             "conference": str(row.get("conference") or ""), "usage": overall,
             "recruit_year": int(year) if year else None,
             "stars": (rec or {}).get("stars"),
             "rating": float(rec["rating"]) if (rec or {}).get("rating") else None,
+            "prev_usage": prev,
         })
 
     # An unmatched player used to score pedigree 0.0 — strictly worse than a
@@ -177,7 +229,8 @@ def build_board(usage_rows: Iterable[dict], recruit_index: dict[str, dict],
     out = [Prospect(name=s["name"], position=s["position"], team=s["team"],
                     conference=s["conference"], usage=s["usage"], season=int(season),
                     recruit_year=s["recruit_year"], stars=s["stars"],
-                    rating=s["rating"] if (s["rating"] or s["stars"]) else med)
+                    rating=s["rating"] if (s["rating"] or s["stars"]) else med,
+                    prev_usage=s.get("prev_usage"))
            for s in staged]
     out.sort(key=lambda p: p.score, reverse=True)
     report = {"players": seen, "pedigree_matched": matched,

@@ -163,3 +163,24 @@ def test_ktc_movers_superflex_band():
 
 def test_ktc_movers_tolerates_junk_rows():
     assert mv.ktc_movers([None, "x", {}, {"oneQBValues": "nope"}]) == []
+
+
+def test_class_premium_picks_a_slot_every_year_actually_has():
+    """DynastyProcess prices the nearest class by early/mid/late and the year
+    beyond it only generically. Hard-coding 'mid 1st' left one year with a value
+    and rendered a meaningless 1.00x against nothing."""
+    market = {"2027": {"1st": 72.7, "mid 1st": 72.6, "early 1st": 39.0},
+              "2028": {"1st": 82.2}}
+    assert mv.class_premium(market, slot="mid 1st") == {}      # the old failure
+    out = mv.class_premium(market)
+    assert set(out) == {"2027", "2028"}
+    assert out["2028"] == 1.0                                  # cheapest baseline
+    assert out["2027"] == pytest.approx(82.2 / 72.7, abs=0.01)
+
+
+def test_class_premium_needs_two_years_to_mean_anything():
+    assert mv.class_premium({"2027": {"1st": 70.0}}) == {}
+
+
+def test_class_premium_on_empty_market():
+    assert mv.class_premium({}) == {}

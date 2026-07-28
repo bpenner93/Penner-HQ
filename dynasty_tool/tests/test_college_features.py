@@ -200,3 +200,46 @@ def test_qb_and_skill_get_different_bands():
     # both land in a band; neither position is structurally locked out
     assert proj[2028]["n"] == 2
     assert sum(proj[2028][b] for b, _ in dv.SKILL_BANDS) >= 1
+
+
+# ------------------------------------------------- class trend (devy) -------
+def test_prior_season_usage_produces_a_trend():
+    prior = dv.index_usage([_usage_row("Riser", "State", aid="1", overall=0.12)])
+    out, rep = dv.build_board([_usage_row("Riser", "State", aid="1", overall=0.28)],
+                              {}, season=2026, prior_usage=prior)
+    p = out[0]
+    assert p.prev_usage == pytest.approx(0.12)
+    assert p.usage_delta == pytest.approx(0.16)
+    assert p.trend == "▲▲"
+
+
+def test_trend_matches_on_name_and_school_when_the_id_is_missing():
+    prior = dv.index_usage([_usage_row("No Id", "State", overall=0.10)])
+    out, _ = dv.build_board([_usage_row("No Id", "State", overall=0.20)],
+                            {}, season=2026, prior_usage=prior)
+    assert out[0].usage_delta == pytest.approx(0.10)
+
+
+def test_a_player_with_no_prior_season_reads_as_new_not_flat():
+    """A true freshman must not look like a stagnating veteran."""
+    out, _ = dv.build_board([_usage_row("Frosh", "State", overall=0.25)],
+                            {}, season=2026, prior_usage={})
+    assert out[0].prev_usage is None
+    assert out[0].usage_delta is None
+    assert out[0].trend == "new"
+
+
+@pytest.mark.parametrize("prev,now,expected", [
+    (0.30, 0.10, "▼▼"), (0.30, 0.24, "▼"), (0.20, 0.21, "—"),
+    (0.10, 0.16, "▲"), (0.10, 0.25, "▲▲"),
+])
+def test_trend_arrows(prev, now, expected):
+    p = dv.Prospect(name="X", position="WR", team="T", conference="C",
+                    usage=now, season=2026, prev_usage=prev)
+    assert p.trend == expected
+
+
+def test_index_usage_prefers_id_but_keeps_a_name_key():
+    idx = dv.index_usage([_usage_row("Some Guy", "State", aid="42", overall=0.2)])
+    assert idx["id:42"] == pytest.approx(0.2)
+    assert any(k.startswith("someguy") for k in idx)

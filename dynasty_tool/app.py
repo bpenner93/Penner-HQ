@@ -507,6 +507,13 @@ def devy_board(_api_key: str, year: int, positions: tuple):
     from dynasty_tool.ingest.cfbd_client import CfbdClient
     client = CfbdClient(_api_key, DiskCache(dt.CACHE_DIR))
     usage = client.player_usage(int(year))
+    # One extra call buys the year-over-year trend, which is the whole point:
+    # a sophomore going 12% -> 28% of his offence is the profile that turns
+    # into draft capital, and it shows up a year before any big board says so.
+    try:
+        prior = dvy.index_usage(client.player_usage(int(year) - 1))
+    except Exception:
+        prior = {}
     recruits: list = []
     for back in range(0, 5):
         try:
@@ -515,7 +522,8 @@ def devy_board(_api_key: str, year: int, positions: tuple):
             continue          # one missing class shouldn't blank the board
     prospects, report = dvy.build_board(
         usage, dvy.index_recruits(recruits), season=int(year),
-        positions=positions or dvy.DEVY_POSITIONS)
+        positions=positions or dvy.DEVY_POSITIONS, prior_usage=prior)
+    report["with_trend"] = sum(1 for p in prospects if p.prev_usage is not None)
     return prospects, report
 
 
@@ -1142,6 +1150,59 @@ elif page == "Movers":
                 "headliners": ", ".join(s.get("top", [])[:3]),
             } for y, s in sorted(strength.items(), reverse=True)
                 if s.get("n", 0) >= 5]), hide_index=True, width="stretch")
+
+        # -- who is actually in each upcoming class -------------------------
+        st.markdown("<div class='hq-h'>Who's in each upcoming class</div>",
+                    unsafe_allow_html=True)
+        ck = secret("CFBD_API_KEY")
+        if not ck:
+            st.info("Add `CFBD_API_KEY` to Streamlit secrets to see the named "
+                    "players in each incoming class and how they're trending.")
+        else:
+            cy = st.number_input("College season", 2015, 2030,
+                                 value=int(st.session_state.season) - 1,
+                                 key="_cls_year")
+            if st.button("Load class rosters", type="primary", key="_cls_go"):
+                st.session_state["_cls_on"] = int(cy)
+            if st.session_state.get("_cls_on"):
+                y = int(st.session_state["_cls_on"])
+                try:
+                    with st.spinner(f"Pulling {y} and {y-1} college usage…"):
+                        from dynasty_tool.analysis.devy import DEVY_POSITIONS
+                        pros, crep = devy_board(ck, y, DEVY_POSITIONS)
+                except Exception as e:
+                    st.error(f"CFBD unavailable: {e}")
+                    pros, crep = [], {}
+                if pros:
+                    from dynasty_tool.analysis import devy as _dvy
+                    grouped = _dvy.by_draft_class(pros)
+                    st.caption(
+                        f"{crep.get('players', 0)} qualifying players · "
+                        f"{crep.get('with_trend', 0)} have a prior season to "
+                        f"trend against · ▲ = gaining offensive share year over year")
+                    for dc in sorted(grouped):
+                        if dc < y:
+                            continue          # already drafted
+                        group = grouped[dc]
+                        with st.expander(f"{dc} NFL draft class — {len(group)} prospects",
+                                         expanded=(dc == min(
+                                             k for k in grouped if k >= y))):
+                            st.dataframe(pd.DataFrame([{
+                                "trend": p.trend, "score": p.score, "player": p.name,
+                                "pos": p.position, "yr": p.class_year,
+                                "school": p.team, "conf": p.conference,
+                                "usage": f"{p.usage:.0%}",
+                                "prior": (f"{p.prev_usage:.0%}"
+                                          if p.prev_usage is not None else "—"),
+                                "Δ": (f"{p.usage_delta:+.0%}"
+                                      if p.usage_delta is not None else "—"),
+                                "stars": p.stars or "",
+                            } for p in group[:40]]), hide_index=True, width="stretch")
+                    st.markdown(
+                        "<div class='hq-note'>Read this next to the pick pricing "
+                        "below: a class stacked with risers that the market "
+                        "hasn't marked up yet is when to <b>buy</b> its picks."
+                        "</div>", unsafe_allow_html=True)
 
         st.markdown("<div class='hq-h'>What the market thinks of future classes</div>",
                     unsafe_allow_html=True)

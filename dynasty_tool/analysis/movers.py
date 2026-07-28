@@ -176,17 +176,32 @@ def pick_market(pick_rows: Iterable[dict], ecr_col: str = "ecr_1qb") -> dict[str
     return out
 
 
-def class_premium(market: dict[str, dict], slot: str = "mid 1st") -> dict[str, float]:
+def class_premium(market: dict[str, dict], slot: Optional[str] = None) -> dict[str, float]:
     """How each future year's pick is priced relative to the cheapest year.
 
-    A *lower* number is a more expensive (more highly regarded) class. Returned
-    as a ratio so it reads as "2027 1sts cost 1.2x what 2028 1sts cost".
+    A ratio, so it reads as "2027 1sts cost 1.2x what 2028 1sts cost". Higher
+    means the market is paying up for that class.
+
+    The slot is chosen from those every year actually has. DynastyProcess prices
+    the nearest future class by early/mid/late but the year beyond it only
+    generically, so hard-coding "mid 1st" left exactly one year with a value and
+    rendered a meaningless 1.00x against itself — comparing a class to nothing.
     """
-    vals = {y: b.get(slot) for y, b in market.items() if b.get(slot)}
-    if not vals:
+    if not market:
         return {}
-    worst = max(vals.values())          # highest ECR == cheapest class
-    return {y: round(worst / v, 3) for y, v in vals.items() if v}
+    if slot:
+        candidates = [slot]
+    else:
+        common = set.intersection(*(set(b) for b in market.values())) if market else set()
+        # Prefer a first-rounder; that is the pick a class premium is really about.
+        order = ["mid 1st", "1st", "early 1st", "late 1st", "mid 2nd", "2nd"]
+        candidates = [s for s in order if s in common] or sorted(common)
+    for cand in candidates:
+        vals = {y: b.get(cand) for y, b in market.items() if b.get(cand)}
+        if len(vals) >= 2:
+            worst = max(vals.values())      # highest ECR == cheapest class
+            return {y: round(worst / v, 3) for y, v in vals.items() if v}
+    return {}
 
 
 # ---------------------------------------------------------------------------

@@ -186,7 +186,18 @@ def parse_twitterapi(payload: str, spec: SourceSpec, limit: int = 40) -> list[Ne
     """Tolerant of the two envelope shapes this API has shipped: a bare
     ``{"tweets": [...]}`` and a nested ``{"data": {"tweets": [...]}}``."""
     data = json.loads(payload) if isinstance(payload, str) else (payload or {})
-    rows = data.get("tweets")
+
+    # twitterapi.io answers HTTP 200 with an error body for a bad key, an
+    # exhausted balance or a malformed query. Left alone that parses to zero
+    # tweets and the source reports "OK, 0 items" — a green tick over a broken
+    # integration. Surface it as the failure it is.
+    if isinstance(data, dict):
+        status = str(data.get("status") or "").lower()
+        msg = data.get("msg") or data.get("message") or data.get("error")
+        if status in ("error", "fail", "failed") or (msg and "tweets" not in data):
+            raise RuntimeError(f"twitterapi.io: {msg or status or 'unknown error'}")
+
+    rows = data.get("tweets") if isinstance(data, dict) else None
     if rows is None and isinstance(data.get("data"), dict):
         rows = data["data"].get("tweets")
     if rows is None:
