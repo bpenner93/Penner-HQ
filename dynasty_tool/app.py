@@ -260,6 +260,25 @@ def secret(name: str) -> str:
     return str(os.environ.get(name, "") or "")
 
 
+def secrets_status(names: tuple) -> dict:
+    """Which expected secrets are visible, and whether the secrets file itself
+    parses. Reports **names only, never values.**
+
+    Worth the extra code because the two failure modes look identical from the
+    outside: a key that was never saved, and a secrets file that is malformed so
+    *every* key reads as missing. Streamlit secrets are TOML, so pasting
+    ``key: value`` instead of ``KEY = "value"`` breaks the whole file at once.
+    """
+    out = {"parse_error": "", "present": [], "missing": [], "all_keys": []}
+    try:
+        out["all_keys"] = sorted(st.secrets.keys())
+    except Exception as e:
+        out["parse_error"] = f"{type(e).__name__}: {e}"[:200]
+    for n in names:
+        (out["present"] if secret(n) else out["missing"]).append(n)
+    return out
+
+
 @st.cache_data(ttl=dt.NEWS_MAX_AGE_MINUTES * 60, show_spinner=False)
 def load_news(_sig: str, twitter_key: str):
     """Every enabled source, in parallel. Returns (items as dicts, health as
@@ -898,8 +917,31 @@ if page == "Beat Feed":
         st.caption("✨ AI summaries are off — add `ANTHROPIC_API_KEY` to Streamlit "
                    "secrets to enable the Summarize and Digest buttons.")
     if not tw_key:
-        st.caption("🐦 X/Twitter sources are off — add `TWITTERAPI_IO_KEY` to "
-                   "Streamlit secrets to pull actual beat-reporter tweets.")
+        stat = secrets_status(("TWITTERAPI_IO_KEY", "ANTHROPIC_API_KEY",
+                               "CFBD_API_KEY"))
+        st.warning("🐦 X sources are off — the app cannot read "
+                   "`TWITTERAPI_IO_KEY`. This happens *before* any request, so "
+                   "it is not a balance or billing problem.")
+        with st.expander("Why can't it see the key?"):
+            if stat["parse_error"]:
+                st.error(f"Your secrets file failed to parse: "
+                         f"`{stat['parse_error']}`\n\nStreamlit secrets are "
+                         "**TOML**. Pasting `key: value` breaks the whole file, "
+                         "so every secret reads as missing at once.")
+            st.markdown(
+                "Secrets Streamlit can currently see (names only — values are "
+                f"never shown): `{', '.join(stat['all_keys']) or 'none'}`")
+            if stat["present"]:
+                st.success(f"Found: {', '.join(stat['present'])}")
+            if stat["missing"]:
+                st.info(f"Missing: {', '.join(stat['missing'])}")
+            st.markdown(
+                "**Manage app → Settings → Secrets** must contain exactly:\n"
+                "```toml\n"
+                'TWITTERAPI_IO_KEY = "new1_…"\n'
+                "```\n"
+                "Then **reboot** the app (Manage app → ⋮ → Reboot) — saving "
+                "secrets does not always reload them into a running process.")
 
     t_mine, t_all, t_team = st.tabs(
         ["⭐ My Players", "🌐 Around the League", "🏟️ By Team"])
