@@ -189,6 +189,19 @@ def team_names(registry: Optional[dict] = None) -> dict[str, str]:
     return out
 
 
+def handle_teams(registry: Optional[dict] = None) -> dict[str, str]:
+    """{lowercased X handle: NFL team}.
+
+    Batching beat writers by division is what keeps the pull count at 8 instead
+    of 32, but a batched source can't carry one team on the spec. This map
+    restores per-item team attribution from the author's handle, so the By Team
+    tab keeps working. Lowercased because X handles are case-insensitive.
+    """
+    reg = registry if registry is not None else load_registry()
+    return {str(h).lstrip("@").lower(): str(t).upper()
+            for h, t in (reg.get("x_handles") or {}).items() if h and t}
+
+
 def mute_terms(registry: Optional[dict] = None) -> tuple[str, ...]:
     """Lowercased substrings that drop an item. NFL feeds are infested with
     sportsbook promos; this kills them without a code change."""

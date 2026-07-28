@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, replace
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Mapping, Optional, Sequence
 
 from ..ingest.news_model import NewsItem
 from ..ingest.news_parse import canonical_url
@@ -286,6 +286,26 @@ def filter_items(items: Sequence[NewsItem], *, query: str = "",
         if mute and any(m in blob for m in mute):
             continue
         out.append(it)
+    return out
+
+
+def attribute_teams(items: Sequence[NewsItem],
+                    handle_teams: Mapping[str, str]) -> list[NewsItem]:
+    """Fill in ``team`` from the author's handle for items that lack one.
+
+    Batched X sources cover a whole division, so the spec can't carry a single
+    team — without this, every batched item would be untagged and invisible to
+    the By Team filter. An item that already has a team keeps it.
+    """
+    if not handle_teams:
+        return list(items)
+    out = []
+    for it in items:
+        if it.team or not it.author_handle:
+            out.append(it)
+            continue
+        team = handle_teams.get(it.author_handle.lstrip("@").lower(), "")
+        out.append(replace(it, team=team) if team else it)
     return out
 
 

@@ -833,7 +833,8 @@ if page == "Beat Feed":
     import time as _time
     from dynasty_tool.analysis import news_feed as nf
     from dynasty_tool.analysis import news_render as nr
-    from dynasty_tool.ingest.news_model import NewsItem, load_sources, mute_terms, team_names
+    from dynasty_tool.ingest.news_model import (NewsItem, handle_teams, load_sources,
+                                                mute_terms, team_names)
 
     st.markdown("## Beat feed")
     st.caption("NFL beat writers and news wires — the Twitter replacement.")
@@ -847,6 +848,9 @@ if page == "Beat Feed":
     with st.spinner("Fetching the wire…"):
         raw_items, raw_health = load_news(sig, tw_key)
     items = [NewsItem.from_dict(d) for d in raw_items]
+    # X sources are batched by division to keep the pull count at 8 instead of
+    # 32, so their items arrive without a team; recover it from the handle.
+    items = nf.attribute_teams(items, handle_teams())
 
     # -- tag against your players, then collapse duplicates ------------------
     mine = my_rostered_ids(st.session_state.username, st.session_state.season)

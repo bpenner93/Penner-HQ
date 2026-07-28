@@ -13,7 +13,7 @@
     "failed, so anything stale here is visible rather than silently missing.",
     "Team keys are Sleeper's NFL team abbreviations.",
     "",
-    "X/twitter_search sources batch many handles into ONE billable call (from:a OR from:b ...). National insiders ship enabled; per-team beat writers ship DISABLED because turning all 32 on multiplies your twitterapi.io spend. Flip \"enabled\": true for the teams you care about."
+    "X beat writers are batched by DIVISION: 8 calls cover all 32 teams instead of 32. Team attribution survives batching via the x_handles map, so the By Team tab still works. Fewer, larger batches mean fewer pulls but a shared 20-tweet budget per call -- fine on a 10-minute refresh, thinner after a long gap."
   ],
   "national": [
     {
@@ -88,6 +88,62 @@
       "type": "twitter_search",
       "query": "AdamSchefter RapSheet TomPelissero MikeGarafolo AlbertBreer JFowlerESPN FieldYates DMRussini Schultz_Report",
       "enabled": true
+    },
+    {
+      "id": "x-afc-east",
+      "name": "AFC East beat (X)",
+      "type": "twitter_search",
+      "query": "JoeBuscaglia SalSports agetzenberg flasportsbuzz Marcel_LJ DavidFurones_ MikeReiss DougKyed kguregian RichCimini BrianCoz ZackBlatt",
+      "enabled": true
+    },
+    {
+      "id": "x-afc-north",
+      "name": "AFC North beat (X)",
+      "type": "twitter_search",
+      "query": "jamisonhensley jeffzrebiec jonas_shaffer Ben_Baby pauldehnerjr KelseyLConway MaryKayCabot AkronJackson DanielOyefusi bepryor MarkKaboly gerrydulac",
+      "enabled": true
+    },
+    {
+      "id": "x-afc-south",
+      "name": "AFC South beat (X)",
+      "type": "twitter_search",
+      "query": "AaronWilson_NFL DJBienAime HolderStephen RomeovilleKid JoelAErickson ESPNdirocco Demetrius82 TDavenport_NFL joerexrode nicksuss",
+      "enabled": true
+    },
+    {
+      "id": "x-afc-west",
+      "name": "AFC West beat (X)",
+      "type": "twitter_search",
+      "query": "Jeff_Legwold NickKosmider ParkerJGabriel adamteicher ByNateTaylor pgsweeney danielpopper KrisRhim tashanreed VinnyBonsignore",
+      "enabled": true
+    },
+    {
+      "id": "x-nfc-east",
+      "name": "NFC East beat (X)",
+      "type": "twitter_search",
+      "query": "toddarcher jonmachota calvinwatkins JordanRaanan DDuggan21 NYPost_Schwartz Tim_McManus Jeff_McLane JimmyKempski john_keim BenStandig NickiJhabvala",
+      "enabled": true
+    },
+    {
+      "id": "x-nfc-north",
+      "name": "NFC North beat (X)",
+      "type": "twitter_search",
+      "query": "CourtneyRCronin adamjahns BradBiggs davebirkett colton_pouncy E_Woodyard RobDemovsky mattschneidman ByRyanWood alec_lewis SeifertESPN GoesslingStrib",
+      "enabled": true
+    },
+    {
+      "id": "x-nfc-south",
+      "name": "NFC South beat (X)",
+      "type": "twitter_search",
+      "query": "DOrlandoAJC TerrinWaack DNewtonespn josephperson Mike_E_Kaye Kat_Terrell HolderLarry JeffDuncan_ JennaLaineESPN gregauman NFLSTROUD",
+      "enabled": true
+    },
+    {
+      "id": "x-nfc-west",
+      "name": "NFC West beat (X)",
+      "type": "twitter_search",
+      "query": "joshweinfuss DougHaller azbobbymac JourdanRodrigue sarahbarshop LATimesklein nwagoner mattbarrows CamInman BradyHenderson MikeDugar gbellseattle",
+      "enabled": true
     }
   ],
   "teams": {
@@ -120,13 +176,6 @@
           "outlet": "azcentral",
           "type": "gnews",
           "query": "\"Bob McManaman\" Cardinals"
-        },
-        {
-          "id": "ari-x",
-          "name": "ARI beat (X)",
-          "type": "twitter_search",
-          "query": "joshweinfuss DougHaller azbobbymac",
-          "enabled": false
         }
       ]
     },
@@ -159,13 +208,6 @@
           "outlet": "AJC",
           "type": "gnews",
           "query": "\"Terrin Waack\" Falcons"
-        },
-        {
-          "id": "atl-x",
-          "name": "ATL beat (X)",
-          "type": "twitter_search",
-          "query": "DOrlandoAJC TerrinWaack",
-          "enabled": false
         }
       ]
     },
@@ -198,13 +240,6 @@
           "outlet": "The Banner",
           "type": "gnews",
           "query": "\"Jonas Shaffer\" Ravens"
-        },
-        {
-          "id": "bal-x",
-          "name": "BAL beat (X)",
-          "type": "twitter_search",
-          "query": "jamisonhensley jeffzrebiec jonas_shaffer",
-          "enabled": false
         }
       ]
     },
@@ -237,13 +272,6 @@
           "outlet": "ESPN",
           "type": "gnews",
           "query": "\"Alaina Getzenberg\" Bills"
-        },
-        {
-          "id": "buf-x",
-          "name": "BUF beat (X)",
-          "type": "twitter_search",
-          "query": "JoeBuscaglia SalSports agetzenberg",
-          "enabled": false
         }
       ]
     },
@@ -276,13 +304,6 @@
           "outlet": "Charlotte Observer",
           "type": "gnews",
           "query": "\"Mike Kaye\" Panthers"
-        },
-        {
-          "id": "car-x",
-          "name": "CAR beat (X)",
-          "type": "twitter_search",
-          "query": "DNewtonespn josephperson Mike_E_Kaye",
-          "enabled": false
         }
       ]
     },
@@ -315,13 +336,6 @@
           "outlet": "Chicago Tribune",
           "type": "gnews",
           "query": "\"Brad Biggs\" Bears"
-        },
-        {
-          "id": "chi-x",
-          "name": "CHI beat (X)",
-          "type": "twitter_search",
-          "query": "CourtneyRCronin adamjahns BradBiggs",
-          "enabled": false
         }
       ]
     },
@@ -354,13 +368,6 @@
           "outlet": "Cincinnati Enquirer",
           "type": "gnews",
           "query": "\"Kelsey Conway\" Bengals"
-        },
-        {
-          "id": "cin-x",
-          "name": "CIN beat (X)",
-          "type": "twitter_search",
-          "query": "Ben_Baby pauldehnerjr KelseyLConway",
-          "enabled": false
         }
       ]
     },
@@ -393,13 +400,6 @@
           "outlet": "ESPN",
           "type": "gnews",
           "query": "\"Daniel Oyefusi\" Browns"
-        },
-        {
-          "id": "cle-x",
-          "name": "CLE beat (X)",
-          "type": "twitter_search",
-          "query": "MaryKayCabot AkronJackson DanielOyefusi",
-          "enabled": false
         }
       ]
     },
@@ -432,13 +432,6 @@
           "outlet": "Dallas Morning News",
           "type": "gnews",
           "query": "\"Calvin Watkins\" Cowboys"
-        },
-        {
-          "id": "dal-x",
-          "name": "DAL beat (X)",
-          "type": "twitter_search",
-          "query": "toddarcher jonmachota calvinwatkins",
-          "enabled": false
         }
       ]
     },
@@ -471,13 +464,6 @@
           "outlet": "Denver Post",
           "type": "gnews",
           "query": "\"Parker Gabriel\" Broncos"
-        },
-        {
-          "id": "den-x",
-          "name": "DEN beat (X)",
-          "type": "twitter_search",
-          "query": "Jeff_Legwold NickKosmider ParkerJGabriel",
-          "enabled": false
         }
       ]
     },
@@ -510,13 +496,6 @@
           "outlet": "ESPN",
           "type": "gnews",
           "query": "\"Michael Rothstein\" Lions"
-        },
-        {
-          "id": "det-x",
-          "name": "DET beat (X)",
-          "type": "twitter_search",
-          "query": "davebirkett colton_pouncy E_Woodyard",
-          "enabled": false
         }
       ]
     },
@@ -549,13 +528,6 @@
           "outlet": "Green Bay Press-Gazette",
           "type": "gnews",
           "query": "\"Ryan Wood\" Packers"
-        },
-        {
-          "id": "gb-x",
-          "name": "GB beat (X)",
-          "type": "twitter_search",
-          "query": "RobDemovsky mattschneidman ByRyanWood",
-          "enabled": false
         }
       ]
     },
@@ -588,13 +560,6 @@
           "outlet": "Houston Chronicle",
           "type": "gnews",
           "query": "\"Jonathan Alexander\" Texans"
-        },
-        {
-          "id": "hou-x",
-          "name": "HOU beat (X)",
-          "type": "twitter_search",
-          "query": "AaronWilson_NFL DJBienAime",
-          "enabled": false
         }
       ]
     },
@@ -627,13 +592,6 @@
           "outlet": "IndyStar",
           "type": "gnews",
           "query": "\"Joel Erickson\" Colts"
-        },
-        {
-          "id": "ind-x",
-          "name": "IND beat (X)",
-          "type": "twitter_search",
-          "query": "HolderStephen RomeovilleKid JoelAErickson",
-          "enabled": false
         }
       ]
     },
@@ -666,13 +624,6 @@
           "outlet": "Jaguars Report",
           "type": "gnews",
           "query": "\"John Shipley\" Jaguars"
-        },
-        {
-          "id": "jax-x",
-          "name": "JAX beat (X)",
-          "type": "twitter_search",
-          "query": "ESPNdirocco Demetrius82",
-          "enabled": false
         }
       ]
     },
@@ -705,13 +656,6 @@
           "outlet": "Arrowhead Pride",
           "type": "gnews",
           "query": "\"Pete Sweeney\" Chiefs"
-        },
-        {
-          "id": "kc-x",
-          "name": "KC beat (X)",
-          "type": "twitter_search",
-          "query": "adamteicher ByNateTaylor pgsweeney",
-          "enabled": false
         }
       ]
     },
@@ -744,13 +688,6 @@
           "outlet": "LA Times",
           "type": "gnews",
           "query": "\"Jeff Miller\" Chargers"
-        },
-        {
-          "id": "lac-x",
-          "name": "LAC beat (X)",
-          "type": "twitter_search",
-          "query": "danielpopper KrisRhim",
-          "enabled": false
         }
       ]
     },
@@ -783,13 +720,6 @@
           "outlet": "LA Times",
           "type": "gnews",
           "query": "\"Gary Klein\" Rams"
-        },
-        {
-          "id": "lar-x",
-          "name": "LAR beat (X)",
-          "type": "twitter_search",
-          "query": "JourdanRodrigue sarahbarshop LATimesklein",
-          "enabled": false
         }
       ]
     },
@@ -822,13 +752,6 @@
           "outlet": "Review-Journal",
           "type": "gnews",
           "query": "\"Vincent Bonsignore\" Raiders"
-        },
-        {
-          "id": "lv-x",
-          "name": "LV beat (X)",
-          "type": "twitter_search",
-          "query": "tashanreed VinnyBonsignore",
-          "enabled": false
         }
       ]
     },
@@ -861,13 +784,6 @@
           "outlet": "Sun Sentinel",
           "type": "gnews",
           "query": "\"David Furones\" Dolphins"
-        },
-        {
-          "id": "mia-x",
-          "name": "MIA beat (X)",
-          "type": "twitter_search",
-          "query": "flasportsbuzz Marcel_LJ DavidFurones_",
-          "enabled": false
         }
       ]
     },
@@ -900,13 +816,6 @@
           "outlet": "Star Tribune",
           "type": "gnews",
           "query": "\"Ben Goessling\" Vikings"
-        },
-        {
-          "id": "min-x",
-          "name": "MIN beat (X)",
-          "type": "twitter_search",
-          "query": "alec_lewis SeifertESPN GoesslingStrib",
-          "enabled": false
         }
       ]
     },
@@ -939,13 +848,6 @@
           "outlet": "MassLive",
           "type": "gnews",
           "query": "\"Karen Guregian\" Patriots"
-        },
-        {
-          "id": "ne-x",
-          "name": "NE beat (X)",
-          "type": "twitter_search",
-          "query": "MikeReiss DougKyed kguregian",
-          "enabled": false
         }
       ]
     },
@@ -978,13 +880,6 @@
           "outlet": "NOLA.com",
           "type": "gnews",
           "query": "\"Jeff Duncan\" Saints"
-        },
-        {
-          "id": "no-x",
-          "name": "NO beat (X)",
-          "type": "twitter_search",
-          "query": "Kat_Terrell HolderLarry JeffDuncan_",
-          "enabled": false
         }
       ]
     },
@@ -1017,13 +912,6 @@
           "outlet": "NY Post",
           "type": "gnews",
           "query": "\"Paul Schwartz\" Giants"
-        },
-        {
-          "id": "nyg-x",
-          "name": "NYG beat (X)",
-          "type": "twitter_search",
-          "query": "JordanRaanan DDuggan21 NYPost_Schwartz",
-          "enabled": false
         }
       ]
     },
@@ -1056,13 +944,6 @@
           "outlet": "The Athletic",
           "type": "gnews",
           "query": "\"Zack Rosenblatt\" Jets"
-        },
-        {
-          "id": "nyj-x",
-          "name": "NYJ beat (X)",
-          "type": "twitter_search",
-          "query": "RichCimini BrianCoz ZackBlatt",
-          "enabled": false
         }
       ]
     },
@@ -1095,13 +976,6 @@
           "outlet": "PhillyVoice",
           "type": "gnews",
           "query": "\"Jimmy Kempski\" Eagles"
-        },
-        {
-          "id": "phi-x",
-          "name": "PHI beat (X)",
-          "type": "twitter_search",
-          "query": "Tim_McManus Jeff_McLane JimmyKempski",
-          "enabled": false
         }
       ]
     },
@@ -1134,13 +1008,6 @@
           "outlet": "Post-Gazette",
           "type": "gnews",
           "query": "\"Gerry Dulac\" Steelers"
-        },
-        {
-          "id": "pit-x",
-          "name": "PIT beat (X)",
-          "type": "twitter_search",
-          "query": "bepryor MarkKaboly gerrydulac",
-          "enabled": false
         }
       ]
     },
@@ -1173,13 +1040,6 @@
           "outlet": "News Tribune",
           "type": "gnews",
           "query": "\"Gregg Bell\" Seahawks"
-        },
-        {
-          "id": "sea-x",
-          "name": "SEA beat (X)",
-          "type": "twitter_search",
-          "query": "BradyHenderson MikeDugar gbellseattle",
-          "enabled": false
         }
       ]
     },
@@ -1212,13 +1072,6 @@
           "outlet": "Mercury News",
           "type": "gnews",
           "query": "\"Cam Inman\" 49ers"
-        },
-        {
-          "id": "sf-x",
-          "name": "SF beat (X)",
-          "type": "twitter_search",
-          "query": "nwagoner mattbarrows CamInman",
-          "enabled": false
         }
       ]
     },
@@ -1251,13 +1104,6 @@
           "outlet": "Tampa Bay Times",
           "type": "gnews",
           "query": "\"Rick Stroud\" Buccaneers"
-        },
-        {
-          "id": "tb-x",
-          "name": "TB beat (X)",
-          "type": "twitter_search",
-          "query": "JennaLaineESPN gregauman NFLSTROUD",
-          "enabled": false
         }
       ]
     },
@@ -1290,13 +1136,6 @@
           "outlet": "The Tennessean",
           "type": "gnews",
           "query": "\"Nick Suss\" Titans"
-        },
-        {
-          "id": "ten-x",
-          "name": "TEN beat (X)",
-          "type": "twitter_search",
-          "query": "TDavenport_NFL joerexrode nicksuss",
-          "enabled": false
         }
       ]
     },
@@ -1329,15 +1168,101 @@
           "outlet": "Washington Post",
           "type": "gnews",
           "query": "\"Nicki Jhabvala\" Commanders"
-        },
-        {
-          "id": "was-x",
-          "name": "WAS beat (X)",
-          "type": "twitter_search",
-          "query": "john_keim BenStandig NickiJhabvala",
-          "enabled": false
         }
       ]
     }
+  },
+  "x_handles": {
+    "joshweinfuss": "ARI",
+    "DougHaller": "ARI",
+    "azbobbymac": "ARI",
+    "DOrlandoAJC": "ATL",
+    "TerrinWaack": "ATL",
+    "jamisonhensley": "BAL",
+    "jeffzrebiec": "BAL",
+    "jonas_shaffer": "BAL",
+    "JoeBuscaglia": "BUF",
+    "SalSports": "BUF",
+    "agetzenberg": "BUF",
+    "DNewtonespn": "CAR",
+    "josephperson": "CAR",
+    "Mike_E_Kaye": "CAR",
+    "CourtneyRCronin": "CHI",
+    "adamjahns": "CHI",
+    "BradBiggs": "CHI",
+    "Ben_Baby": "CIN",
+    "pauldehnerjr": "CIN",
+    "KelseyLConway": "CIN",
+    "MaryKayCabot": "CLE",
+    "AkronJackson": "CLE",
+    "DanielOyefusi": "CLE",
+    "toddarcher": "DAL",
+    "jonmachota": "DAL",
+    "calvinwatkins": "DAL",
+    "Jeff_Legwold": "DEN",
+    "NickKosmider": "DEN",
+    "ParkerJGabriel": "DEN",
+    "davebirkett": "DET",
+    "colton_pouncy": "DET",
+    "E_Woodyard": "DET",
+    "RobDemovsky": "GB",
+    "mattschneidman": "GB",
+    "ByRyanWood": "GB",
+    "AaronWilson_NFL": "HOU",
+    "DJBienAime": "HOU",
+    "HolderStephen": "IND",
+    "RomeovilleKid": "IND",
+    "JoelAErickson": "IND",
+    "ESPNdirocco": "JAX",
+    "Demetrius82": "JAX",
+    "adamteicher": "KC",
+    "ByNateTaylor": "KC",
+    "pgsweeney": "KC",
+    "danielpopper": "LAC",
+    "KrisRhim": "LAC",
+    "JourdanRodrigue": "LAR",
+    "sarahbarshop": "LAR",
+    "LATimesklein": "LAR",
+    "tashanreed": "LV",
+    "VinnyBonsignore": "LV",
+    "flasportsbuzz": "MIA",
+    "Marcel_LJ": "MIA",
+    "DavidFurones_": "MIA",
+    "alec_lewis": "MIN",
+    "SeifertESPN": "MIN",
+    "GoesslingStrib": "MIN",
+    "MikeReiss": "NE",
+    "DougKyed": "NE",
+    "kguregian": "NE",
+    "Kat_Terrell": "NO",
+    "HolderLarry": "NO",
+    "JeffDuncan_": "NO",
+    "JordanRaanan": "NYG",
+    "DDuggan21": "NYG",
+    "NYPost_Schwartz": "NYG",
+    "RichCimini": "NYJ",
+    "BrianCoz": "NYJ",
+    "ZackBlatt": "NYJ",
+    "Tim_McManus": "PHI",
+    "Jeff_McLane": "PHI",
+    "JimmyKempski": "PHI",
+    "bepryor": "PIT",
+    "MarkKaboly": "PIT",
+    "gerrydulac": "PIT",
+    "BradyHenderson": "SEA",
+    "MikeDugar": "SEA",
+    "gbellseattle": "SEA",
+    "nwagoner": "SF",
+    "mattbarrows": "SF",
+    "CamInman": "SF",
+    "JennaLaineESPN": "TB",
+    "gregauman": "TB",
+    "NFLSTROUD": "TB",
+    "TDavenport_NFL": "TEN",
+    "joerexrode": "TEN",
+    "nicksuss": "TEN",
+    "john_keim": "WAS",
+    "BenStandig": "WAS",
+    "NickiJhabvala": "WAS"
   }
 }

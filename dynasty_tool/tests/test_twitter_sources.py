@@ -98,14 +98,15 @@ def test_registry_ships_x_sources_and_they_are_valid():
     assert specs["nat-x-insiders"].kind == "twitter_search"
 
 
-def test_per_team_x_beats_ship_disabled():
-    """32 extra billable calls per refresh is a cost decision, not a default."""
+def test_beat_writers_are_batched_not_one_source_per_team():
+    """Per-team sources would be 32 billable calls a refresh. Division batching
+    gets the same 32 teams for 8, so no per-team X source should remain."""
     reg = load_registry()
-    team_x = [s for b in reg["teams"].values() for s in b["sources"]
-              if s["type"] == "twitter_search"]
-    assert len(team_x) == 32
-    assert all(s.get("enabled") is False for s in team_x)
-    assert not any(s.id.endswith("-x") for s in load_sources())   # none loaded
+    assert not [s for b in reg["teams"].values() for s in b["sources"]
+                if s["type"] == "twitter_search"]
+    x = [s for s in load_sources() if s.kind == "twitter_search"]
+    assert len(x) == 9          # 8 divisions + 1 national insiders group
+    assert all(s.enabled for s in x)
 
 
 def test_every_registry_x_query_builds():
@@ -116,3 +117,61 @@ def test_every_registry_x_query_builds():
     for s in rows:
         q = build_from_query(s["query"])
         assert q.startswith("(from:") and " OR " in q or q.count("from:") == 1
+
+
+# ------------------------------------------------- division batching --------
+def test_all_32_teams_are_covered_by_eight_division_calls():
+    """The whole point: 8 pulls instead of 32, with nothing dropped."""
+    from dynasty_tool.ingest.news_model import handle_teams
+    specs = [s for s in load_sources() if s.kind == "twitter_search"]
+    divisions = [s for s in specs if s.id.startswith("x-")]
+    assert len(divisions) == 8
+    covered = {handle_teams()[h.lower()] for s in divisions
+               for h in s.ref.split() if h.lower() in handle_teams()}
+    assert len(covered) == 32
+
+
+def test_no_handle_is_billed_twice_across_divisions():
+    specs = [s for s in load_sources()
+             if s.kind == "twitter_search" and s.id.startswith("x-")]
+    handles = [h.lower() for s in specs for h in s.ref.split()]
+    assert len(handles) == len(set(handles))
+
+
+def test_queries_stay_short_enough_for_the_search_api():
+    for s in [s for s in load_sources() if s.kind == "twitter_search"]:
+        assert len(build_from_query(s.ref)) < 500
+
+
+def test_team_attribution_survives_batching():
+    """A batched division source can't carry one team on the spec, so items
+    would otherwise arrive untagged and vanish from the By Team filter."""
+    from dynasty_tool.analysis.news_feed import attribute_teams
+    from dynasty_tool.ingest.news_model import NewsItem, handle_teams
+    it = NewsItem(id="1", source_id="x-afc-east", source_label="AFC East beat (X)",
+                  kind="post", author_handle="@JoeBuscaglia", text="Bills news")
+    assert attribute_teams([it], handle_teams())[0].team == "BUF"
+
+
+def test_attribution_is_case_insensitive_and_tolerates_the_at_sign():
+    from dynasty_tool.analysis.news_feed import attribute_teams
+    from dynasty_tool.ingest.news_model import NewsItem
+    it = NewsItem(id="1", source_id="s", source_label="S", kind="post",
+                  author_handle="@JOEBUSCAGLIA", text="x")
+    assert attribute_teams([it], {"joebuscaglia": "BUF"})[0].team == "BUF"
+
+
+def test_attribution_never_overwrites_an_existing_team():
+    from dynasty_tool.analysis.news_feed import attribute_teams
+    from dynasty_tool.ingest.news_model import NewsItem
+    it = NewsItem(id="1", source_id="s", source_label="S", kind="post",
+                  author_handle="@JoeBuscaglia", team="ATL", text="x")
+    assert attribute_teams([it], {"joebuscaglia": "BUF"})[0].team == "ATL"
+
+
+def test_attribution_leaves_unknown_handles_alone():
+    from dynasty_tool.analysis.news_feed import attribute_teams
+    from dynasty_tool.ingest.news_model import NewsItem
+    it = NewsItem(id="1", source_id="s", source_label="S", kind="post",
+                  author_handle="@nobody", text="x")
+    assert attribute_teams([it], {"joebuscaglia": "BUF"})[0].team == ""

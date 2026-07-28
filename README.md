@@ -81,13 +81,17 @@ TWITTERAPI_IO_KEY  = "…"   # real beat-reporter tweets via twitterapi.io
 CFBD_API_KEY       = "…"   # devy board (free: collegefootballdata.com/profile)
 ```
 
-**X sources and what they cost.** Handles are batched into one search per group
-(`from:a OR from:b …`), so a group of reporters is a single billable call rather
-than one each. National insiders ship **enabled**; the 32 per-team beat groups
-ship **disabled**, because turning them all on multiplies spend — flip
-`"enabled": true` in `feeds.json` for the teams you actually follow. Rough shape
-at twitterapi.io's per-tweet pricing: insiders alone run ~$15-20/mo at a few
-refreshes an hour; all 32 team groups on is roughly 4x that.
+**X sources and what they cost.** Beat writers for all 32 teams are **on**, and
+handles are batched **by division** — one search per division
+(`from:a OR from:b …`) instead of one call per reporter. That covers 91 beat
+writers plus the national insiders in **9 pulls per refresh** rather than 100.
+
+The trade-off is honest: each call returns a shared pool of recent tweets, so
+after a long gap a busy division may crowd out a quieter beat. On a normal
+10-minute refresh there simply aren't enough new tweets for that to bite.
+
+Team attribution survives the batching via the `x_handles` map in `feeds.json`
+(handle → team), so the **By Team** tab still works on batched items.
 
 Without them the feed still works — the ✨ buttons hide themselves and X sources
 are skipped. Summaries are disk-cached, so the same article is never paid for

@@ -3,6 +3,11 @@
 Free with an API key (https://collegefootballdata.com/profile). The key belongs
 in Streamlit secrets as ``CFBD_API_KEY``; never in this repo.
 
+Base URL and auth are confirmed against the official ``cfbd-python`` SDK, whose
+README states all URIs are relative to ``https://api.collegefootballdata.com``
+with Bearer authentication. (An earlier note here speculated that CFBD had moved
+to an ``apinext`` host; that was wrong and is resolved.)
+
 Deliberately built on the two league-wide endpoints rather than per-team ones:
 ``/player/usage`` returns every player's share of their offence in **one**
 request, and ``/recruiting/players`` returns a whole recruiting class in one
