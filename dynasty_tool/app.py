@@ -354,6 +354,23 @@ def dp_pick_rows():
     return mc.values_now(DiskCache(dt.CACHE_DIR), path=mc.PICKS_PATH)
 
 
+@st.cache_data(ttl=1800, show_spinner=False)
+def sleeper_trending(kind: str, hours: int, limit: int):
+    """Sleeper's add/drop volume, enriched with player meta.
+
+    This is behaviour, not opinion: what managers across every Sleeper league
+    are actually doing, which moves hours before expert values react.
+    """
+    c = sleeper_client()
+    rows = c.trending(kind, lookback_hours=int(hours), limit=int(limit)) or []
+    ids = [str(r.get("player_id")) for r in rows if r.get("player_id")]
+    meta = wh.meta_subset(c.players(), ids)
+    return [{"pid": str(r.get("player_id")), "count": int(r.get("count") or 0),
+             **{k: (meta.get(str(r.get("player_id")), {}) or {}).get(k)
+                for k in ("full_name", "position", "team", "age", "injury_status")}}
+            for r in rows if r.get("player_id")]
+
+
 @st.cache_data(ttl=24 * 3600, show_spinner=False)
 def devy_board(_api_key: str, year: int, positions: tuple):
     """College usage + recruiting pedigree -> a ranked devy board.
@@ -1572,10 +1589,57 @@ elif page == "Trades":
 # ===========================================================================
 elif page == "Waivers":
     st.markdown("## Waiver wire")
+
+    # -- what the whole Sleeper population is doing right now ---------------
+    st.markdown("<div class='hq-h'>🔥 Trending on Sleeper</div>",
+                unsafe_allow_html=True)
+    st.caption("Real add/drop volume across every Sleeper league — behaviour, "
+               "not opinion. The only column that matters is whether he's "
+               "actually free in *your* league.")
+    w1, w2 = st.columns([1, 1])
+    tr_hours = w1.radio("Window", [6, 24, 48], index=1, horizontal=True,
+                        format_func=lambda h: f"{h}h")
+    tr_kind = w2.radio("Direction", ["add", "drop"], horizontal=True,
+                       format_func=lambda k: "📈 Adds" if k == "add" else "📉 Drops")
+    try:
+        trend = sleeper_trending(str(tr_kind), int(tr_hours), 40)
+    except Exception as e:
+        trend = []
+        st.error(f"Sleeper trending unavailable: {e}")
+
+    if trend:
+        # Availability is the whole point: a hot add you can't have is noise.
+        free_ids = {str(a.sleeper_id) for a in (A.available or [])}
+        val_of = {str(a.sleeper_id): a.value for a in (A.available or [])}
+        taken = {str(p.sleeper_id): rv.display
+                 for rv in A.rosters.values() for p in rv.players}
+        rows, n_free = [], 0
+        for t in trend:
+            pid = t["pid"]
+            is_free = pid in free_ids
+            n_free += 1 if is_free else 0
+            rows.append({
+                "": wh.headshot_url(pid),
+                "status": "✅ FREE" if is_free else "—",
+                "player": t.get("full_name") or pid,
+                "pos": t.get("position") or "",
+                "team": t.get("team") or "",
+                f"{tr_kind}s": f"{t['count']:,}",
+                "value": round(val_of.get(pid, 0)) or None,
+                "rostered by": taken.get(pid, ""),
+                "inj": t.get("injury_status") or "",
+            })
+        st.caption(f"{n_free} of {len(rows)} trending {tr_kind}s are still free "
+                   f"in {lg['name']}.")
+        show_roster_table(pd.DataFrame(rows), height=430)
+        if tr_kind == "add" and not n_free:
+            st.info("Everyone trending is already rostered here — normal in a "
+                    "deep dynasty league.", icon="🏜️")
+
+    st.markdown("<div class='hq-h'>Your targets</div>", unsafe_allow_html=True)
     tgts = A.waivers.get(view_uid, [])
     if tgts:
-        st.markdown(f"<div class='hq-h'>Targets for {me.display} (fill your holes)"
-                    "</div>", unsafe_allow_html=True)
+        st.caption(f"Fills the holes on {me.display}.")
         st.markdown(" ".join(
             f"<span class='hq-badge' style='background:{POS.get(t.pos, '#6b6a64')}'>"
             f"{t.name} · {t.value:,.0f}</span>" for t in tgts),
