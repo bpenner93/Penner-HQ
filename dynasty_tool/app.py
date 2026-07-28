@@ -35,6 +35,11 @@ from dynasty_tool.write.sleeper_deeplink import sleeper_lineup_url
 INK, SERIES, POS, TIER, STATUS = wh.INK, wh.SERIES, wh.POS_COLORS, wh.TIER_COLORS, wh.STATUS
 EXTRA_LEAGUES_PATH = dt.CACHE_DIR / "app_leagues.json"
 
+# Shown in the sidebar. Bumped whenever a fix needs to be *confirmed live* —
+# without it there is no way to tell "the deploy hasn't landed" apart from "the
+# fix doesn't work", and those need completely different responses.
+BUILD = "b7 · roster-ttl"
+
 # Feed styling only. Guarded because this file is executed via runpy: a hard
 # import failure here would take down all 11 existing pages, not just the feed.
 try:
@@ -768,20 +773,26 @@ if not _check_password():
 
 with st.sidebar:
     st.markdown("<div class='hq-brand'>🏈 PENNER <span>HQ</span></div>"
-                "<div class='hq-sub'>my playbook — powered by your own engine</div>",
+                f"<div class='hq-sub'>my playbook · build {BUILD}</div>",
                 unsafe_allow_html=True)
+
+    # Top level, not inside the expander: this is the button you reach for the
+    # moment a trade doesn't show up, and it was invisible behind a collapsed
+    # section — which made a stale cache look like a broken app.
+    if st.button("🔄 Refresh data", width="stretch", type="secondary"):
+        # Every layer, or this button lies: clearing only Streamlit's data cache
+        # re-reads the same stale bytes straight back off disk, and the cached
+        # client resource keeps pointing at them.
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        n = DiskCache(dt.CACHE_DIR).invalidate("sleeper__")
+        st.toast(f"Cleared {n} cached Sleeper responses — refetching")
+        st.rerun()
 
     with st.expander("⚙️ Account & leagues"):
         st.session_state.username = st.text_input("Sleeper username",
                                                   st.session_state.username)
         st.session_state.season = st.text_input("Season", st.session_state.season)
-        if st.button("🔄 Refresh all data", width="stretch"):
-            # Both layers, or this button lies: clearing only Streamlit's cache
-            # re-reads the same stale bytes straight back off disk.
-            st.cache_data.clear()
-            n = DiskCache(dt.CACHE_DIR).invalidate("sleeper__")
-            st.toast(f"Cleared {n} cached Sleeper responses")
-            st.rerun()
 
     my_uid_hint, sleeper_leagues = discover_leagues(st.session_state.username,
                                                     st.session_state.season)
