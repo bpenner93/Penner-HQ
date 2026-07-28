@@ -181,7 +181,9 @@ def discover_leagues(username: str, season: str):
     return uid, out
 
 
-@st.cache_data(ttl=900, show_spinner=False)
+# 10 min, matching ROSTERS_MAX_AGE_HOURS so the memory and disk layers agree
+# rather than compounding into a longer stale window than either intends.
+@st.cache_data(ttl=600, show_spinner=False)
 def load_league(platform: str, league_id: str, season: str, host: str,
                 my_token: str, week: int):
     """Analyze one league -> pickle-safe bundle for every page."""
@@ -208,8 +210,9 @@ def load_league(platform: str, league_id: str, season: str, host: str,
     A = la.analyze(ctx, prov, weekly_week=(week or None), generate_weekly=False)
     rostered = [p.sleeper_id for rv in A.rosters.values() for p in rv.players]
     meta = wh.meta_subset(ctx.players_meta, rostered)
+    import time as _t
     return {"A": A, "meta": meta, "g2s": g2s, "my_uid": my_uid,
-            "qb": ctx.qb_format, "scrape": scrape}
+            "qb": ctx.qb_format, "scrape": scrape, "fetched_at": _t.time()}
 
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
@@ -827,9 +830,16 @@ with st.sidebar:
                 st.session_state.page = name
                 st.rerun()
 
+    # "Are my trades in here?" needs to be answerable without guessing, so the
+    # age of the underlying roster fetch is always on screen.
+    import time as _time
+    _age_min = int((_time.time() - float(bundle.get("fetched_at") or 0)) / 60)
+    _age = "just now" if _age_min < 1 else f"{_age_min}m ago"
     st.markdown(f"<div class='hq-note'>basis: {A.basis} · {A.qb_format}QB"
                 + (f" · values {bundle['scrape']}" if bundle['scrape'] else "")
-                + "</div>", unsafe_allow_html=True)
+                + f"<br>rosters fetched <b>{_age}</b> — trades land within "
+                  "~15 min, or hit Refresh above.</div>",
+                unsafe_allow_html=True)
 
 page = st.session_state.page
 if page not in {n for _g, items in NAV for _i, n in items}:
