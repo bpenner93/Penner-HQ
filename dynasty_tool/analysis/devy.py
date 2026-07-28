@@ -70,6 +70,15 @@ class Prospect:
 
     @property
     def draft_class(self) -> Optional[int]:
+        """The **earliest** draft a player can declare for, not a prediction of
+        when he will.
+
+        NCAA rules make a recruit eligible three years out of high school, so a
+        2023 signee is first eligible in 2026 — but he may stay a senior and go
+        in 2027, or redshirt and go in 2028. Treating this as "the class he'll
+        be in" quietly overstates it, so everything downstream labels it as
+        first-eligible.
+        """
         return self.recruit_year + YEARS_TO_ELIGIBLE if self.recruit_year else None
 
     @property

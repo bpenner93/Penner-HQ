@@ -1184,9 +1184,9 @@ elif page == "Movers":
                         if dc < y:
                             continue          # already drafted
                         group = grouped[dc]
-                        with st.expander(f"{dc} NFL draft class — {len(group)} prospects",
-                                         expanded=(dc == min(
-                                             k for k in grouped if k >= y))):
+                        with st.expander(
+                                f"First eligible {dc} — {len(group)} prospects",
+                                expanded=(dc == min(k for k in grouped if k >= y))):
                             st.dataframe(pd.DataFrame([{
                                 "trend": p.trend, "score": p.score, "player": p.name,
                                 "pos": p.position, "yr": p.class_year,
@@ -1276,7 +1276,7 @@ elif page == "Movers":
                         st.markdown("<div class='hq-h'>How each incoming class "
                                     "is shaping up</div>", unsafe_allow_html=True)
                         st.dataframe(pd.DataFrame([{
-                            "NFL draft class": dc, "prospects": b["n"],
+                            "first eligible": dc, "prospects": b["n"],
                             "super elite": b["super elite"], "elite": b["elite"],
                             "very good": b["very good"], "good": b["good"],
                             "headliners": ", ".join(b["top"][:3]),

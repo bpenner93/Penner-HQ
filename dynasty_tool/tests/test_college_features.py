@@ -243,3 +243,23 @@ def test_index_usage_prefers_id_but_keeps_a_name_key():
     idx = dv.index_usage([_usage_row("Some Guy", "State", aid="42", overall=0.2)])
     assert idx["id:42"] == pytest.approx(0.2)
     assert any(k.startswith("someguy") for k in idx)
+
+
+def test_draft_class_is_first_eligible_three_years_out_of_high_school():
+    """A 2023 high-school recruit is first eligible for the 2026 draft — not
+    2027 or 2028. He may still declare later; this is the floor, and the UI
+    labels it as such rather than implying it's the class he'll go in."""
+    p = dv.Prospect(name="Carnell Tate", position="WR", team="Ohio State",
+                    conference="Big Ten", usage=0.25, season=2025,
+                    recruit_year=2023)
+    assert p.draft_class == 2026
+    assert p.class_year == "JR"          # 2025 season, 2023 signee
+
+
+def test_class_year_advances_with_the_season_but_eligibility_does_not():
+    a = dv.Prospect(name="X", position="WR", team="T", conference="C",
+                    usage=0.2, season=2025, recruit_year=2023)
+    b = dv.Prospect(name="X", position="WR", team="T", conference="C",
+                    usage=0.2, season=2026, recruit_year=2023)
+    assert (a.class_year, b.class_year) == ("JR", "SR")
+    assert a.draft_class == b.draft_class == 2026
