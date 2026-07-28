@@ -321,6 +321,40 @@ def news_index(qb_format: int, extra_ids: tuple) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# movers loaders
+# ---------------------------------------------------------------------------
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def dp_movers(days: int):
+    """(now rows, then rows, as-of label) from the DynastyProcess git history.
+
+    No snapshot storage of our own: the values CSV is committed weekly to a
+    public repo, so history already exists and Streamlit Cloud's ephemeral disk
+    can't lose it.
+    """
+    import datetime as _d
+    from dynasty_tool.ingest import movers_client as mc
+    cache = DiskCache(dt.CACHE_DIR)
+    now_rows = mc.values_now(cache)
+    target = (_d.datetime.now(_d.timezone.utc) - _d.timedelta(days=days))
+    sha = mc.commit_before(target.strftime("%Y-%m-%dT%H:%M:%SZ"), cache)
+    then_rows = mc.values_at(sha, cache)
+    asof = (then_rows[0].get("scrape_date") if then_rows else "") or target.date().isoformat()
+    return now_rows, then_rows, str(asof)
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def ktc_board():
+    from dynasty_tool.ingest import movers_client as mc
+    return mc.fetch_ktc(DiskCache(dt.CACHE_DIR))
+
+
+@st.cache_data(ttl=12 * 3600, show_spinner=False)
+def dp_pick_rows():
+    from dynasty_tool.ingest import movers_client as mc
+    return mc.values_now(DiskCache(dt.CACHE_DIR), path=mc.PICKS_PATH)
+
+
+# ---------------------------------------------------------------------------
 # small render helpers
 # ---------------------------------------------------------------------------
 def tile(col, title: str, value: str, sub: str = ""):
@@ -515,7 +549,7 @@ def year_flow_fig(res, uid: str) -> go.Figure:
 NAV = [
     # First: this is the several-times-a-day page, the one replacing the Twitter
     # habit, so it should be the first thing your thumb reaches.
-    ("WIRE", [("📰", "Beat Feed")]),
+    ("WIRE", [("📰", "Beat Feed"), ("📈", "Movers")]),
     ("LINEUP", [("📊", "Dashboard"), ("👥", "My Team"), ("⚡", "Start/Sit"),
                 ("🆚", "Matchups")]),
     ("SEASON", [("🏆", "Playoff Race"), ("📈", "History & SOS")]),
@@ -801,6 +835,167 @@ if page == "Beat Feed":
         beat = sorted({s.label for s in specs if s.team == sel})
         st.caption(f"{len(rows):,} items · beat: {', '.join(beat) or '—'}")
         _render(rows[:50], key_prefix="t")
+
+
+# ===========================================================================
+elif page == "Movers":
+    from dynasty_tool.analysis import movers as mvs
+
+    st.markdown("## Movers — who the market is buying and selling")
+    qb_fmt = int(A.qb_format)
+    vcol = "value_2qb" if qb_fmt == 2 else "value_1qb"
+    ecol = "ecr_2qb" if qb_fmt == 2 else "ecr_1qb"
+
+    # fp_id -> sleeper_id, so your own players can be starred. Best-effort: a
+    # missing id column costs the stars, not the page.
+    @st.cache_data(ttl=6 * 3600, show_spinner=False)
+    def _fp_to_sleeper() -> dict:
+        try:
+            _p, _k, ids = dp_frames()
+            out = {}
+            for _, r in ids.iterrows():
+                fp, sl = r.get("fantasypros_id"), r.get("sleeper_id")
+                if fp == fp and sl == sl and fp is not None and sl is not None:
+                    out[str(int(float(fp)))] = str(sl).split(".")[0]
+            return out
+        except Exception:
+            return {}
+
+    mine = set(my_rostered_ids(st.session_state.username, st.session_state.season))
+    fp2s = _fp_to_sleeper()
+
+    def mover_table(rows, label: str):
+        if not rows:
+            st.caption("Nothing here.")
+            return
+        st.dataframe(pd.DataFrame([{
+            "": "★" if fp2s.get(m.key) in mine else "",
+            "player": m.name, "pos": m.pos, "team": m.team,
+            "was": round(m.old), "now": round(m.new),
+            "Δ": round(m.delta), "Δ%": round(m.pct, 1),
+        } for m in rows]), hide_index=True, width="stretch")
+
+    t_dp, t_ktc, t_class = st.tabs(
+        ["📊 Dynasty values (experts)", "🔥 KTC (the crowd)", "🎓 Draft classes"])
+
+    # -- expert consensus, week over week -----------------------------------
+    with t_dp:
+        st.caption("DynastyProcess / FantasyPros expert consensus — the same "
+                   "scale the Trade Calculator prices trades on, so a riser "
+                   "here is directly actionable. Updates weekly.")
+        c1, c2 = st.columns([1, 1])
+        days = c1.radio("Window", [7, 30, 90], index=1, horizontal=True,
+                        format_func=lambda d: f"{d}d")
+        by_pct = c2.toggle("Rank by %", value=False,
+                           help="Surfaces mid-tier movement that raw points buries.")
+        try:
+            now_rows, then_rows, asof = dp_movers(int(days))
+        except Exception as e:
+            st.error(f"Couldn't load value history: {e}")
+            now_rows, then_rows, asof = [], [], ""
+        if then_rows:
+            movers = mvs.diff_values(now_rows, then_rows, value_col=vcol)
+            risers, fallers = mvs.top_movers(movers, n=15, by_pct=by_pct)
+            st.caption(f"comparing today against {asof} · {len(movers)} players "
+                       f"matched · {qb_fmt}QB · ★ = on one of your rosters")
+            a, b = st.columns(2)
+            with a:
+                st.markdown("<div class='hq-h'>▲ Risers</div>", unsafe_allow_html=True)
+                mover_table(risers, "risers")
+            with b:
+                st.markdown("<div class='hq-h'>▼ Fallers</div>", unsafe_allow_html=True)
+                mover_table(fallers, "fallers")
+        elif now_rows:
+            st.info("No history available for that window yet.")
+
+    # -- the crowd ----------------------------------------------------------
+    with t_ktc:
+        st.caption("KeepTradeCut — crowd-sourced trade votes, moving daily. This "
+                   "is the bullish/bearish signal: when the crowd moves before "
+                   "the experts do, that's the buy or sell window.")
+        st.markdown("<div class='hq-note'>KTC has no public API, so this reads "
+                    "the board embedded in their rankings page. It is unofficial "
+                    "and can break without notice — if it does, the expert tab "
+                    "still works.</div>", unsafe_allow_html=True)
+        if st.button("Load KTC board", type="primary"):
+            st.session_state["_ktc_on"] = True
+        if st.session_state.get("_ktc_on"):
+            try:
+                board = ktc_board()
+                km = mvs.ktc_movers(board, superflex=(qb_fmt == 2))
+                risers, fallers = mvs.top_movers(km, n=15)
+                st.caption(f"{len(board):,} players on the board · "
+                           f"{'Superflex' if qb_fmt == 2 else '1QB'} · "
+                           "movement is KTC's own 30-day trend")
+                a, b = st.columns(2)
+                with a:
+                    st.markdown("<div class='hq-h'>▲ Crowd is buying</div>",
+                                unsafe_allow_html=True)
+                    mover_table(risers, "ktc risers")
+                with b:
+                    st.markdown("<div class='hq-h'>▼ Crowd is selling</div>",
+                                unsafe_allow_html=True)
+                    mover_table(fallers, "ktc fallers")
+            except Exception as e:
+                st.error(f"KTC unavailable: {e}")
+                st.caption("Nothing else is affected — the expert tab is independent.")
+
+    # -- draft classes ------------------------------------------------------
+    with t_class:
+        st.caption("How strong is a class, and what should a future pick cost? "
+                   "Past classes are priced by what they actually produced; "
+                   "future classes by what the market is charging for their picks.")
+        try:
+            now_rows, _t, _a = dp_movers(30)
+        except Exception:
+            now_rows = []
+        if now_rows:
+            strength = mvs.class_strength(now_rows, value_col=vcol)
+            base = mvs.class_baseline(strength)
+            if base:
+                st.markdown("<div class='hq-h'>What a normal class produces</div>",
+                            unsafe_allow_html=True)
+                cols = st.columns(len(base))
+                for col, (tier, avg) in zip(cols, base.items()):
+                    tile(col, tier, f"{avg:g}", "per class (avg)")
+                st.markdown("<div class='hq-note'>Averaged over settled classes — "
+                            "the two most recent are excluded, since they haven't "
+                            "sorted themselves out yet and would drag the elite "
+                            "counts down.</div>", unsafe_allow_html=True)
+
+            st.markdown("<div class='hq-h'>Every class, by what it actually produced</div>",
+                        unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame([{
+                "class": y, "players valued": s.get("n", 0),
+                "super elite": s.get("super elite", 0), "elite": s.get("elite", 0),
+                "very good": s.get("very good", 0), "good": s.get("good", 0),
+                "headliners": ", ".join(s.get("top", [])[:3]),
+            } for y, s in sorted(strength.items(), reverse=True)
+                if s.get("n", 0) >= 5]), hide_index=True, width="stretch")
+
+        st.markdown("<div class='hq-h'>What the market thinks of future classes</div>",
+                    unsafe_allow_html=True)
+        try:
+            market = mvs.pick_market(dp_pick_rows(), ecr_col=ecol)
+            prem = mvs.class_premium(market)
+            if prem:
+                cols = st.columns(len(prem))
+                for col, (yr, mult) in zip(cols, sorted(prem.items())):
+                    tile(col, f"{yr} picks", f"{mult:.2f}×",
+                         "vs the cheapest class")
+                st.markdown("<div class='hq-note'>Higher multiple = the market is "
+                            "paying up for that class. A class priced well above "
+                            "the others is one to <b>sell</b> picks into; a cheap "
+                            "class is when to <b>buy</b> them.</div>",
+                            unsafe_allow_html=True)
+                st.dataframe(pd.DataFrame([
+                    {"class": y, **{k: round(v, 1) for k, v in sorted(b.items())}}
+                    for y, b in sorted(market.items())]),
+                    hide_index=True, width="stretch")
+            else:
+                st.caption("No future-class pick pricing available.")
+        except Exception as e:
+            st.error(f"Pick market unavailable: {e}")
 
 
 # ===========================================================================
