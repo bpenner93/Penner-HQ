@@ -38,7 +38,7 @@ EXTRA_LEAGUES_PATH = dt.CACHE_DIR / "app_leagues.json"
 # Shown in the sidebar. Bumped whenever a fix needs to be *confirmed live* —
 # without it there is no way to tell "the deploy hasn't landed" apart from "the
 # fix doesn't work", and those need completely different responses.
-BUILD = "b7 · roster-ttl"
+BUILD = "b8 · data-check"
 
 # Feed styling only. Guarded because this file is executed via runpy: a hard
 # import failure here would take down all 11 existing pages, not just the feed.
@@ -794,6 +794,13 @@ with st.sidebar:
                                                   st.session_state.username)
         st.session_state.season = st.text_input("Season", st.session_state.season)
 
+    # "My trades aren't showing" has three very different causes — a stale
+    # cache, the wrong league selected, or Sleeper genuinely not reporting them
+    # — and no amount of staring at a roster distinguishes them. This asks
+    # Sleeper directly and shows the raw answer.
+    show_check = st.checkbox("🔍 Data check", value=False,
+                             help="What Sleeper is actually returning right now")
+
     my_uid_hint, sleeper_leagues = discover_leagues(st.session_state.username,
                                                     st.session_state.season)
     extras = wh.load_extra_leagues(EXTRA_LEAGUES_PATH)
@@ -849,8 +856,43 @@ with st.sidebar:
     st.markdown(f"<div class='hq-note'>basis: {A.basis} · {A.qb_format}QB"
                 + (f" · values {bundle['scrape']}" if bundle['scrape'] else "")
                 + f"<br>rosters fetched <b>{_age}</b> — trades land within "
-                  "~15 min, or hit Refresh above.</div>",
+                  "~10 min, or hit Refresh above.</div>",
                 unsafe_allow_html=True)
+
+    if show_check:
+        st.markdown("<div class='hq-navhead'>DATA CHECK</div>",
+                    unsafe_allow_html=True)
+        try:
+            _c = sleeper_client()
+            _lid = str(lg["league_id"])
+            _raw = _c.rosters(_lid)
+            _me_raw = next((r for r in _raw
+                            if str(r.get("owner_id") or "") == str(bundle["my_uid"])),
+                           None)
+            st.caption(f"league_id `{_lid}` · {len(_raw)} rosters · "
+                       f"your roster: {len((_me_raw or {}).get('players') or [])} players")
+            # Sleeper files offseason trades under low week numbers; scan a few.
+            _tx = []
+            for _w in range(1, 4):
+                for _t in (_c.transactions(_lid, _w) or []):
+                    if _t.get("type") == "trade" and _t.get("status") == "complete":
+                        _tx.append(_t)
+            _tx.sort(key=lambda t: int(t.get("status_updated") or 0), reverse=True)
+            if _tx:
+                import datetime as _dt
+                st.caption(f"{len(_tx)} completed trades Sleeper reports:")
+                for _t in _tx[:5]:
+                    _ms = int(_t.get("status_updated") or 0)
+                    _when = (_dt.datetime.fromtimestamp(_ms / 1000).strftime("%b %d")
+                             if _ms else "?")
+                    _n = len(_t.get("adds") or {})
+                    st.caption(f"· {_when} — {_n} player(s) moved")
+            else:
+                st.caption("⚠️ Sleeper reports **no completed trades** in weeks 1-3 "
+                           "of this league. If you traded, check the league "
+                           "selector above — the trade may be in a different one.")
+        except Exception as _e:
+            st.caption(f"check failed: {_e}")
 
 page = st.session_state.page
 if page not in {n for _g, items in NAV for _i, n in items}:
