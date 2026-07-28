@@ -372,6 +372,28 @@ def sleeper_trending(kind: str, hours: int, limit: int):
 
 
 @st.cache_data(ttl=24 * 3600, show_spinner=False)
+def rookie_model(holdout: int, positions: tuple, max_season: int):
+    """Train the hit-rate model on every skill player drafted since 2010.
+
+    Everything joins on ids (cfb_player_id / pfr_id), never on names. Returns
+    (rookie fit, held-out AUC, devy fit, devy held-out AUC, rows) so the page can
+    show both the post-draft and the pre-draft view side by side.
+    """
+    from dynasty_tool.analysis import rookie_model as rmod
+    from dynasty_tool.ingest import nflverse_client as nv
+    cache = DiskCache(dt.CACHE_DIR)
+    draft = [d for d in nv.draft_picks(cache)
+             if str(d.get("season") or "").isdigit() and int(d["season"]) >= 2010]
+    rows = rmod.build_rows(draft, nv.combine(cache), positions=positions,
+                           max_season=int(max_season))
+    fit_r, oos_r = rmod.fit_holdout(rows, rmod.ROOKIE_FEATURES,
+                                    holdout_seasons=int(holdout))
+    fit_d, oos_d = rmod.fit_holdout(rows, rmod.DEVY_FEATURES,
+                                    holdout_seasons=int(holdout))
+    return fit_r, oos_r, fit_d, oos_d, rows
+
+
+@st.cache_data(ttl=24 * 3600, show_spinner=False)
 def devy_board(_api_key: str, year: int, positions: tuple):
     """College usage + recruiting pedigree -> a ranked devy board.
 
@@ -919,9 +941,9 @@ elif page == "Movers":
             "Δ": round(m.delta), "Δ%": round(m.pct, 1),
         } for m in rows]), hide_index=True, width="stretch")
 
-    t_dp, t_ktc, t_class, t_devy = st.tabs(
+    t_dp, t_ktc, t_class, t_devy, t_model = st.tabs(
         ["📊 Dynasty values (experts)", "🔥 KTC (the crowd)", "🎓 Draft classes",
-         "🔭 Devy board"])
+         "🔭 Devy board", "🧪 Rookie model"])
 
     # -- expert consensus, week over week -----------------------------------
     with t_dp:
@@ -1111,6 +1133,84 @@ elif page == "Movers":
                                "nothing about traits, injuries or scheme.")
                 elif rep:
                     st.warning("No qualifying players found for that season.")
+
+    # -- the calibrated model ----------------------------------------------
+    with t_model:
+        st.caption("A hit-rate model trained on what actually happened to every "
+                   "skill player drafted since 2010 — not hand-picked weights. "
+                   "\"Hit\" = a career yards-per-game pace that would have made "
+                   "him startable.")
+        m1, m2 = st.columns([1, 1])
+        hold = m1.slider("Hold out the last N draft classes", 2, 6, 4,
+                         help="Scored on classes it never saw — a random split "
+                              "would leak the future and flatter the model.")
+        maxs = m2.slider("Train through season", 2016, 2023, 2022,
+                         help="Recent classes haven't settled; including them "
+                              "would count good players as misses.")
+        if st.button("Train the model", type="primary"):
+            st.session_state["_rm_on"] = (int(hold), int(maxs))
+        if st.session_state.get("_rm_on"):
+            h, ms = st.session_state["_rm_on"]
+            try:
+                with st.spinner("Pulling nflverse draft + combine and fitting…"):
+                    fit_r, oos_r, fit_d, oos_d, rows = rookie_model(
+                        h, ("WR", "RB", "TE"), ms)
+            except Exception as e:
+                st.error(f"Couldn't train: {e}")
+                fit_r = None
+            if fit_r is not None:
+                k1, k2, k3, k4 = st.columns(4)
+                tile(k1, "training players", f"{fit_r.n:,}", f"drafted 2010–{ms}")
+                tile(k2, "held-out AUC", f"{oos_r:.3f}",
+                     "post-draft · unseen classes")
+                tile(k3, "devy AUC", f"{oos_d:.3f}", "no draft capital")
+                tile(k4, "base hit rate", f"{fit_r.base_rate:.0%}",
+                     "of drafted skill players")
+
+                st.markdown("<div class='hq-h'>What the model learned</div>",
+                            unsafe_allow_html=True)
+                a, b = st.columns(2)
+                for col, fitobj, name in ((a, fit_r, "Rookie (post-draft)"),
+                                          (b, fit_d, "Devy (pre-draft)")):
+                    with col:
+                        st.markdown(f"<div class='hq-note'><b>{name}</b></div>",
+                                    unsafe_allow_html=True)
+                        imp = fitobj.importance()
+                        top = imp[0][1] or 1.0
+                        # feature names are our own constants, not feed input
+                        st.markdown("".join(
+                            f"<div class='nf-mv'><span>{f}</span>"
+                            f"<span class='d'>{w:.3f}</span></div>"
+                            f"<div class='hq-bar'><span style='width:"
+                            f"{min(100, w / top * 100):.0f}%'></span></div>"
+                            for f, w in imp), unsafe_allow_html=True)
+                st.markdown(
+                    "<div class='hq-note'>Draft capital dominating the rookie "
+                    "model is the expected, correct result — it is the strongest "
+                    "public predictor of NFL production, which is exactly why the "
+                    "devy model excludes it and scores lower. That gap is the "
+                    "honest cost of picking players before the NFL does."
+                    "</div>", unsafe_allow_html=True)
+
+                st.markdown("<div class='hq-h'>Score a class</div>",
+                            unsafe_allow_html=True)
+                seasons = sorted({int(r["season"]) for r in rows}, reverse=True)
+                pick_season = st.selectbox("Draft class", seasons)
+                from dynasty_tool.analysis import rookie_model as rmod
+                scored = rmod.score_prospects(
+                    fit_r, [r for r in rows if int(r["season"]) == pick_season])
+                if scored:
+                    st.dataframe(pd.DataFrame([{
+                        "hit prob": f"{s['prob']:.0%}", "player": s["name"],
+                        "pos": s["position"],
+                        "pick": int(s["pick"]) if s["pick"] == s["pick"] else None,
+                        **{k: v for k, v in sorted(
+                            s["contributions"].items(),
+                            key=lambda kv: -abs(kv[1]))[:4]},
+                    } for s in scored[:40]]), hide_index=True, width="stretch")
+                    st.caption("Columns after `pick` are that player's four "
+                               "biggest score drivers — positive helped, "
+                               "negative hurt. The model explains itself.")
 
 
 # ===========================================================================
