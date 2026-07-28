@@ -100,3 +100,17 @@ class SleeperClient:
     def players(self) -> dict:
         """The big (~5MB) player metadata blob; refreshed at most daily."""
         return self._get("players/nfl", max_age_hours=config.PLAYERS_MAX_AGE_HOURS) or {}
+
+    def trending(self, kind: str = "add", lookback_hours: int = 24,
+                 limit: int = 25) -> list[dict]:
+        """[{'player_id','count'}] — real add/drop volume across every Sleeper
+        league, not an opinion.
+
+        This is the closest thing to a live market: it is what managers are
+        actually doing right now, which moves hours before expert values do.
+        Short cache (30 min) because that immediacy is the entire point.
+        """
+        kind = "drop" if str(kind).lower().startswith("d") else "add"
+        path = (f"players/nfl/trending/{kind}"
+                f"?lookback_hours={int(lookback_hours)}&limit={int(limit)}")
+        return self._get(path, max_age_hours=0.5) or []

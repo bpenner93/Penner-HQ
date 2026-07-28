@@ -35,6 +35,13 @@ from dynasty_tool.write.sleeper_deeplink import sleeper_lineup_url
 INK, SERIES, POS, TIER, STATUS = wh.INK, wh.SERIES, wh.POS_COLORS, wh.TIER_COLORS, wh.STATUS
 EXTRA_LEAGUES_PATH = dt.CACHE_DIR / "app_leagues.json"
 
+# Feed styling only. Guarded because this file is executed via runpy: a hard
+# import failure here would take down all 11 existing pages, not just the feed.
+try:
+    from dynasty_tool.analysis.news_render import NEWS_CSS
+except Exception:  # pragma: no cover
+    NEWS_CSS = ""
+
 
 def _is_cloud() -> bool:
     """Cloud (public) build: show only Sleeper dynasty leagues; never seed the
@@ -139,6 +146,7 @@ html, body, [data-testid="stAppViewContainer"] {{ background: var(--page); }}
 .hq-asset .who {{ color: var(--muted); font-size: 11.5px; }}
 .hq-asset .val {{ margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }}
 a {{ color: var(--accent); }}
+{NEWS_CSS}
 </style>
 """, unsafe_allow_html=True)
 
@@ -236,6 +244,158 @@ def nfl_week() -> int:
         return int((sleeper_client().state() or {}).get("week") or 0)
     except Exception:
         return 0
+
+
+# ---------------------------------------------------------------------------
+# beat feed loaders
+# ---------------------------------------------------------------------------
+def secret(name: str) -> str:
+    """st.secrets first, env second. Never hardcode a key in this repo."""
+    try:
+        v = st.secrets.get(name, "")
+        if v:
+            return str(v)
+    except Exception:
+        pass
+    return str(os.environ.get(name, "") or "")
+
+
+@st.cache_data(ttl=dt.NEWS_MAX_AGE_MINUTES * 60, show_spinner=False)
+def load_news(_sig: str, twitter_key: str):
+    """Every enabled source, in parallel. Returns (items as dicts, health as
+    dicts) — plain data, so the cache stays pickle-safe and version-tolerant.
+
+    ``_sig`` is a hash of the enabled source list: editing feeds.json changes it
+    and busts this cache immediately, rather than serving a stale feed.
+    """
+    from dynasty_tool.ingest.news_client import NewsClient, fetch_all
+    from dynasty_tool.ingest.news_model import load_sources
+    specs = load_sources()
+    client = NewsClient(DiskCache(dt.CACHE_DIR), twitter_key=twitter_key)
+    items, health = fetch_all(client, specs)
+    return [i.to_dict() for i in items], [h.__dict__ for h in health]
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def my_rostered_ids(username: str, season: str) -> tuple:
+    """Every sleeper player id you roster, across ALL your dynasty leagues.
+
+    Three cheap endpoints — no chain walk, no DynastyProcess CSVs, no Monte
+    Carlo. Deliberately not derived from ``load_league``: the feed should flag a
+    player you own in *any* league, not just the one selected in the sidebar,
+    and this costs ~1% of a full league analysis.
+    """
+    c = sleeper_client()
+    u = c.user(username) or {}
+    uid = str(u.get("user_id") or "")
+    if not uid:
+        return ()
+    out: set[str] = set()
+    for lg in c.user_leagues(uid, season) or []:
+        if (lg.get("settings") or {}).get("type") != 2:
+            continue
+        for r in c.rosters(str(lg.get("league_id") or "")) or []:
+            if str(r.get("owner_id") or "") != uid:
+                continue
+            for pid in (r.get("players") or []):
+                out.add(str(pid))
+    return tuple(sorted(out))
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def news_index(qb_format: int, extra_ids: tuple) -> dict:
+    """Name index over (top-N by value ∪ your rostered players).
+
+    Never the full ~11k Sleeper blob: shrinking the candidate pool is the single
+    most effective false-positive control in the tagger, and it is what keeps two
+    different Josh Allens from making every mention ambiguous.
+    """
+    from dynasty_tool.analysis.news_feed import build_name_index
+    players, _picks, ids = dp_frames()
+    ecr = wh.ecr_map(players, ids, qb_format=qb_format)
+    ranked = sorted(ecr.items(),
+                    key=lambda kv: -(kv[1].get("value") or 0))[:dt.NEWS_POOL_TOP_N]
+    pool = {str(pid) for pid, _ in ranked} | {str(p) for p in (extra_ids or ())}
+    meta = wh.meta_subset(sleeper_client().players(), pool)
+    return build_name_index(meta, pool=pool)
+
+
+# ---------------------------------------------------------------------------
+# movers loaders
+# ---------------------------------------------------------------------------
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def dp_movers(days: int):
+    """(now rows, then rows, as-of label) from the DynastyProcess git history.
+
+    No snapshot storage of our own: the values CSV is committed weekly to a
+    public repo, so history already exists and Streamlit Cloud's ephemeral disk
+    can't lose it.
+    """
+    import datetime as _d
+    from dynasty_tool.ingest import movers_client as mc
+    cache = DiskCache(dt.CACHE_DIR)
+    now_rows = mc.values_now(cache)
+    target = (_d.datetime.now(_d.timezone.utc) - _d.timedelta(days=days))
+    sha = mc.commit_before(target.strftime("%Y-%m-%dT%H:%M:%SZ"), cache)
+    then_rows = mc.values_at(sha, cache)
+    asof = (then_rows[0].get("scrape_date") if then_rows else "") or target.date().isoformat()
+    return now_rows, then_rows, str(asof)
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def ktc_board():
+    from dynasty_tool.ingest import movers_client as mc
+    return mc.fetch_ktc(DiskCache(dt.CACHE_DIR))
+
+
+@st.cache_data(ttl=12 * 3600, show_spinner=False)
+def dp_pick_rows():
+    from dynasty_tool.ingest import movers_client as mc
+    return mc.values_now(DiskCache(dt.CACHE_DIR), path=mc.PICKS_PATH)
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def sleeper_trending(kind: str, hours: int, limit: int):
+    """Sleeper's add/drop volume, enriched with player meta.
+
+    This is behaviour, not opinion: what managers across every Sleeper league
+    are actually doing, which moves hours before expert values react.
+    """
+    c = sleeper_client()
+    rows = c.trending(kind, lookback_hours=int(hours), limit=int(limit)) or []
+    ids = [str(r.get("player_id")) for r in rows if r.get("player_id")]
+    meta = wh.meta_subset(c.players(), ids)
+    return [{"pid": str(r.get("player_id")), "count": int(r.get("count") or 0),
+             **{k: (meta.get(str(r.get("player_id")), {}) or {}).get(k)
+                for k in ("full_name", "position", "team", "age", "injury_status")}}
+            for r in rows if r.get("player_id")]
+
+
+@st.cache_data(ttl=24 * 3600, show_spinner=False)
+def devy_board(_api_key: str, year: int, positions: tuple):
+    """College usage + recruiting pedigree -> a ranked devy board.
+
+    ``_api_key`` is underscore-prefixed so Streamlit skips hashing it: the cache
+    key is (year, positions), and the key never lands in a cache entry.
+
+    Four recruiting classes are pulled so that freshmen through seniors all
+    resolve a class year; that plus one league-wide usage call is the whole
+    request budget.
+    """
+    from dynasty_tool.analysis import devy as dvy
+    from dynasty_tool.ingest.cfbd_client import CfbdClient
+    client = CfbdClient(_api_key, DiskCache(dt.CACHE_DIR))
+    usage = client.player_usage(int(year))
+    recruits: list = []
+    for back in range(0, 5):
+        try:
+            recruits.extend(client.recruits(int(year) - back))
+        except Exception:
+            continue          # one missing class shouldn't blank the board
+    prospects, report = dvy.build_board(
+        usage, dvy.index_recruits(recruits), season=int(year),
+        positions=positions or dvy.DEVY_POSITIONS)
+    return prospects, report
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +591,9 @@ def year_flow_fig(res, uid: str) -> go.Figure:
 # sidebar — league switcher, team switcher, grouped nav (everything on the left)
 # ---------------------------------------------------------------------------
 NAV = [
+    # First: this is the several-times-a-day page, the one replacing the Twitter
+    # habit, so it should be the first thing your thumb reaches.
+    ("WIRE", [("📰", "Beat Feed"), ("📈", "Movers")]),
     ("LINEUP", [("📊", "Dashboard"), ("👥", "My Team"), ("⚡", "Start/Sit"),
                 ("🆚", "Matchups")]),
     ("SEASON", [("🏆", "Playoff Race"), ("📈", "History & SOS")]),
@@ -543,7 +706,415 @@ def show_roster_table(df: pd.DataFrame, height: int | None = None):
 
 
 # ===========================================================================
-if page == "Dashboard":
+if page == "Beat Feed":
+    # Imports are lazy and local: this file is executed via runpy, so a failure
+    # importing the news stack must not take down the other 11 pages.
+    import time as _time
+    from dynasty_tool.analysis import news_feed as nf
+    from dynasty_tool.analysis import news_render as nr
+    from dynasty_tool.ingest.news_model import NewsItem, load_sources, mute_terms, team_names
+
+    st.markdown("## Beat feed")
+    st.caption("NFL beat writers and news wires — the Twitter replacement.")
+
+    now_ms = int(_time.time() * 1000)
+    specs = load_sources()
+    sig = str(hash(tuple(sorted((s.id, s.ref) for s in specs))))
+    tw_key = secret("TWITTERAPI_IO_KEY")
+    anthropic_key = secret("ANTHROPIC_API_KEY")
+
+    with st.spinner("Fetching the wire…"):
+        raw_items, raw_health = load_news(sig, tw_key)
+    items = [NewsItem.from_dict(d) for d in raw_items]
+
+    # -- tag against your players, then collapse duplicates ------------------
+    mine = my_rostered_ids(st.session_state.username, st.session_state.season)
+    index = news_index(int(A.qb_format), tuple(mine))
+    items, report = nf.tag_items(items, index)
+    items = nf.dedupe(items, jaccard=dt.DEDUPE_JACCARD,
+                      window_ms=dt.DEDUPE_WINDOW_HOURS * 3600 * 1000)
+    meta = index.get("meta") or {}
+    mute = mute_terms()
+    since = now_ms - dt.NEWS_WINDOW_HOURS * 3600 * 1000
+
+    ok = [h for h in raw_health if h.get("ok")]
+    bad = [h for h in raw_health if not h.get("ok")]
+    c1, c2, c3, c4 = st.columns(4)
+    tile(c1, "items", f"{len(items):,}", f"last {dt.NEWS_WINDOW_HOURS}h window")
+    tile(c2, "sources", f"{len(ok)}/{len(raw_health)}",
+         "all healthy" if not bad else f"{len(bad)} failing")
+    tile(c3, "your players", f"{len(mine)}", "across every dynasty league")
+    newest = max((i.published_ms for i in items), default=0)
+    tile(c4, "newest", nr.rel_time(now_ms, newest) or "—", "ago")
+
+    if bad:
+        st.warning(f"{len(bad)} of {len(raw_health)} sources failed — the feed is "
+                   "incomplete. Fix them by editing `dynasty_tool/ingest/feeds.json`.")
+    with st.expander(f"Source health — {len(ok)}/{len(raw_health)} OK"):
+        st.dataframe(pd.DataFrame([{
+            "ok": "✅" if h.get("ok") else "❌", "source": h.get("label"),
+            "kind": h.get("kind"), "team": h.get("team") or "—",
+            "items": h.get("n_items"), "cached": h.get("from_cache"),
+            "error": h.get("error") or "",
+        } for h in raw_health]), hide_index=True, width="stretch")
+    st.markdown(f"<div class='hq-note'>Player tagging — {report.line()}. Matching "
+                "needs first <i>and</i> last name; ambiguous mentions are skipped "
+                "rather than guessed.</div>", unsafe_allow_html=True)
+
+    if not anthropic_key:
+        st.caption("✨ AI summaries are off — add `ANTHROPIC_API_KEY` to Streamlit "
+                   "secrets to enable the Summarize and Digest buttons.")
+    if not tw_key:
+        st.caption("🐦 X/Twitter sources are off — add `TWITTERAPI_IO_KEY` to "
+                   "Streamlit secrets to pull actual beat-reporter tweets.")
+
+    t_mine, t_all, t_team = st.tabs(
+        ["⭐ My Players", "🌐 Around the League", "🏟️ By Team"])
+
+    def _summarize_button(it, key_prefix: str):
+        """Per-item ✨ Summarize. The result is written to a NON-widget session
+        key — writing a widget's own key after the widget exists is forbidden by
+        Streamlit (see the Trades page comment at the top of that branch)."""
+        if not anthropic_key:
+            return ""
+        skey = f"_sum_{it.id}"
+        if st.session_state.get(skey):
+            return st.session_state[skey]
+        if st.button("✨ Summarize", key=f"{key_prefix}_{it.id}", type="tertiary"):
+            from dynasty_tool.ingest import summarize as sm
+            cache = DiskCache(dt.CACHE_DIR)
+            with st.spinner("Reading the article…"):
+                body = sm.fetch_article(it.url, cache) or it.text
+                try:
+                    st.session_state[skey] = sm.summarize_item(
+                        anthropic_key, it.title or it.text[:80], body, cache)
+                except Exception as e:
+                    st.error(f"Summary failed: {e}")
+            st.rerun()
+        return ""
+
+    def _render(rows, chips=True, key_prefix="f"):
+        """One markdown call for the whole list — per-item calls would add
+        Streamlit's inter-container padding and read as a stack of widgets."""
+        st.markdown(nr.feed_html(rows, now_ms, meta, show_chips=chips),
+                    unsafe_allow_html=True)
+        if anthropic_key:
+            with st.expander("✨ Summarize an item"):
+                for it in rows[:25]:
+                    st.caption((it.title or it.text)[:90])
+                    _summarize_button(it, key_prefix)
+
+    # -- tab 1: My Players --------------------------------------------------
+    with t_mine:
+        mineset = {str(p) for p in mine}
+        mine_items = nf.filter_items(items, player_ids=mineset, since_ms=since,
+                                     mute=mute)
+        if anthropic_key and mine_items:
+            if st.button("✨ Digest my players", type="primary"):
+                from dynasty_tool.ingest import summarize as sm
+                blocks = [(meta.get(pid, {}).get("full_name", pid),
+                           [f"{i.title} {i.text}" for i in its])
+                          for pid, its in nf.group_by_player(
+                              mine_items, sorted(mineset))]
+                with st.spinner("Reading everything about your roster…"):
+                    try:
+                        st.session_state["_news_digest"] = sm.digest_players(
+                            anthropic_key, blocks, DiskCache(dt.CACHE_DIR))
+                    except Exception as e:
+                        st.error(f"Digest failed: {e}")
+        if st.session_state.get("_news_digest"):
+            st.markdown("<div class='nf-sum'><b>✨ today's digest</b><br>"
+                        + st.session_state["_news_digest"].replace("\n", "<br>")
+                        + "</div>", unsafe_allow_html=True)
+
+        if not mine_items:
+            st.info(f"No news about your players in the last "
+                    f"{dt.NEWS_WINDOW_HOURS}h.")
+        else:
+            # Most-covered players first — the guys the wire is actually
+            # talking about today rise to the top of your section.
+            order = sorted(
+                {p for i in mine_items for p in i.player_ids},
+                key=lambda p: (-len([1 for i in mine_items if p in i.player_ids]),
+                               meta.get(p, {}).get("full_name", "")))
+            for pid, its in nf.group_by_player(mine_items, order):
+                m = meta.get(pid, {})
+                logo = wh.team_logo_url(m.get("team"))
+                st.markdown(
+                    f"<div class='nf-pgroup'>"
+                    f"<img src='{wh.headshot_url(pid)}' alt=''>"
+                    f"<span><span class='n'>{nr.esc(m.get('full_name') or pid)}</span> "
+                    f"{pos_badge(str(m.get('position') or ''))}"
+                    f"<span class='x'>{nr.esc(m.get('team') or '')} · "
+                    f"{len(its)} update{'s' if len(its) != 1 else ''}</span></span>"
+                    + (f"<img src='{logo}' alt='' style='margin-left:auto'>" if logo else "")
+                    + "</div>", unsafe_allow_html=True)
+                _render(its, chips=False, key_prefix=f"m{pid}")
+
+    # -- tab 2: Around the League -------------------------------------------
+    with t_all:
+        names = team_names()
+        f1, f2, f3 = st.columns([1, 1, 2])
+        pick_team = f1.multiselect("Team", sorted(names),
+                                   format_func=lambda t: f"{t} — {names[t]}")
+        pick_kind = f2.multiselect("Type", ["post", "article"])
+        q = f3.text_input("Search", placeholder="player, coach, phrase…")
+        rows = nf.filter_items(items, query=q, teams=pick_team, kinds=pick_kind,
+                               since_ms=since, mute=mute)
+        st.caption(f"{len(rows):,} items")
+        n = st.session_state.setdefault("_news_n", 25)
+        _render(rows[:n], key_prefix="a")
+        if len(rows) > n:
+            if st.button(f"Load 25 more ({len(rows) - n:,} left)"):
+                st.session_state["_news_n"] = n + 25
+                st.rerun()
+
+    # -- tab 3: By Team -----------------------------------------------------
+    with t_team:
+        names = team_names()
+        opts = sorted(names)
+        sel = st.selectbox("Team", opts, format_func=lambda t: f"{t} — {names[t]}",
+                           key="_news_team")
+        rows = nf.filter_items(items, teams=[sel], since_ms=since, mute=mute)
+        beat = sorted({s.label for s in specs if s.team == sel})
+        st.caption(f"{len(rows):,} items · beat: {', '.join(beat) or '—'}")
+        _render(rows[:50], key_prefix="t")
+
+
+# ===========================================================================
+elif page == "Movers":
+    from dynasty_tool.analysis import movers as mvs
+
+    st.markdown("## Movers — who the market is buying and selling")
+    qb_fmt = int(A.qb_format)
+    vcol = "value_2qb" if qb_fmt == 2 else "value_1qb"
+    ecol = "ecr_2qb" if qb_fmt == 2 else "ecr_1qb"
+
+    # fp_id -> sleeper_id, so your own players can be starred. Best-effort: a
+    # missing id column costs the stars, not the page.
+    @st.cache_data(ttl=6 * 3600, show_spinner=False)
+    def _fp_to_sleeper() -> dict:
+        try:
+            _p, _k, ids = dp_frames()
+            out = {}
+            for _, r in ids.iterrows():
+                fp, sl = r.get("fantasypros_id"), r.get("sleeper_id")
+                if fp == fp and sl == sl and fp is not None and sl is not None:
+                    out[str(int(float(fp)))] = str(sl).split(".")[0]
+            return out
+        except Exception:
+            return {}
+
+    mine = set(my_rostered_ids(st.session_state.username, st.session_state.season))
+    fp2s = _fp_to_sleeper()
+
+    def mover_table(rows, label: str):
+        if not rows:
+            st.caption("Nothing here.")
+            return
+        st.dataframe(pd.DataFrame([{
+            "": "★" if fp2s.get(m.key) in mine else "",
+            "player": m.name, "pos": m.pos, "team": m.team,
+            "was": round(m.old), "now": round(m.new),
+            "Δ": round(m.delta), "Δ%": round(m.pct, 1),
+        } for m in rows]), hide_index=True, width="stretch")
+
+    t_dp, t_ktc, t_class, t_devy = st.tabs(
+        ["📊 Dynasty values (experts)", "🔥 KTC (the crowd)", "🎓 Draft classes",
+         "🔭 Devy board"])
+
+    # -- expert consensus, week over week -----------------------------------
+    with t_dp:
+        st.caption("DynastyProcess / FantasyPros expert consensus — the same "
+                   "scale the Trade Calculator prices trades on, so a riser "
+                   "here is directly actionable. Updates weekly.")
+        c1, c2 = st.columns([1, 1])
+        days = c1.radio("Window", [7, 30, 90], index=1, horizontal=True,
+                        format_func=lambda d: f"{d}d")
+        by_pct = c2.toggle("Rank by %", value=False,
+                           help="Surfaces mid-tier movement that raw points buries.")
+        try:
+            now_rows, then_rows, asof = dp_movers(int(days))
+        except Exception as e:
+            st.error(f"Couldn't load value history: {e}")
+            now_rows, then_rows, asof = [], [], ""
+        if then_rows:
+            movers = mvs.diff_values(now_rows, then_rows, value_col=vcol)
+            risers, fallers = mvs.top_movers(movers, n=15, by_pct=by_pct)
+            st.caption(f"comparing today against {asof} · {len(movers)} players "
+                       f"matched · {qb_fmt}QB · ★ = on one of your rosters")
+            a, b = st.columns(2)
+            with a:
+                st.markdown("<div class='hq-h'>▲ Risers</div>", unsafe_allow_html=True)
+                mover_table(risers, "risers")
+            with b:
+                st.markdown("<div class='hq-h'>▼ Fallers</div>", unsafe_allow_html=True)
+                mover_table(fallers, "fallers")
+        elif now_rows:
+            st.info("No history available for that window yet.")
+
+    # -- the crowd ----------------------------------------------------------
+    with t_ktc:
+        st.caption("KeepTradeCut — crowd-sourced trade votes, moving daily. This "
+                   "is the bullish/bearish signal: when the crowd moves before "
+                   "the experts do, that's the buy or sell window.")
+        st.markdown("<div class='hq-note'>KTC has no public API, so this reads "
+                    "the board embedded in their rankings page. It is unofficial "
+                    "and can break without notice — if it does, the expert tab "
+                    "still works.</div>", unsafe_allow_html=True)
+        if st.button("Load KTC board", type="primary"):
+            st.session_state["_ktc_on"] = True
+        if st.session_state.get("_ktc_on"):
+            try:
+                board = ktc_board()
+                km = mvs.ktc_movers(board, superflex=(qb_fmt == 2))
+                risers, fallers = mvs.top_movers(km, n=15)
+                st.caption(f"{len(board):,} players on the board · "
+                           f"{'Superflex' if qb_fmt == 2 else '1QB'} · "
+                           "movement is KTC's own 30-day trend")
+                a, b = st.columns(2)
+                with a:
+                    st.markdown("<div class='hq-h'>▲ Crowd is buying</div>",
+                                unsafe_allow_html=True)
+                    mover_table(risers, "ktc risers")
+                with b:
+                    st.markdown("<div class='hq-h'>▼ Crowd is selling</div>",
+                                unsafe_allow_html=True)
+                    mover_table(fallers, "ktc fallers")
+            except Exception as e:
+                st.error(f"KTC unavailable: {e}")
+                st.caption("Nothing else is affected — the expert tab is independent.")
+
+    # -- draft classes ------------------------------------------------------
+    with t_class:
+        st.caption("How strong is a class, and what should a future pick cost? "
+                   "Past classes are priced by what they actually produced; "
+                   "future classes by what the market is charging for their picks.")
+        try:
+            now_rows, _t, _a = dp_movers(30)
+        except Exception:
+            now_rows = []
+        if now_rows:
+            strength = mvs.class_strength(now_rows, value_col=vcol)
+            base = mvs.class_baseline(strength)
+            if base:
+                st.markdown("<div class='hq-h'>What a normal class produces</div>",
+                            unsafe_allow_html=True)
+                cols = st.columns(len(base))
+                for col, (tier, avg) in zip(cols, base.items()):
+                    tile(col, tier, f"{avg:g}", "per class (avg)")
+                st.markdown("<div class='hq-note'>Averaged over settled classes — "
+                            "the two most recent are excluded, since they haven't "
+                            "sorted themselves out yet and would drag the elite "
+                            "counts down.</div>", unsafe_allow_html=True)
+
+            st.markdown("<div class='hq-h'>Every class, by what it actually produced</div>",
+                        unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame([{
+                "class": y, "players valued": s.get("n", 0),
+                "super elite": s.get("super elite", 0), "elite": s.get("elite", 0),
+                "very good": s.get("very good", 0), "good": s.get("good", 0),
+                "headliners": ", ".join(s.get("top", [])[:3]),
+            } for y, s in sorted(strength.items(), reverse=True)
+                if s.get("n", 0) >= 5]), hide_index=True, width="stretch")
+
+        st.markdown("<div class='hq-h'>What the market thinks of future classes</div>",
+                    unsafe_allow_html=True)
+        try:
+            market = mvs.pick_market(dp_pick_rows(), ecr_col=ecol)
+            prem = mvs.class_premium(market)
+            if prem:
+                cols = st.columns(len(prem))
+                for col, (yr, mult) in zip(cols, sorted(prem.items())):
+                    tile(col, f"{yr} picks", f"{mult:.2f}×",
+                         "vs the cheapest class")
+                st.markdown("<div class='hq-note'>Higher multiple = the market is "
+                            "paying up for that class. A class priced well above "
+                            "the others is one to <b>sell</b> picks into; a cheap "
+                            "class is when to <b>buy</b> them.</div>",
+                            unsafe_allow_html=True)
+                st.dataframe(pd.DataFrame([
+                    {"class": y, **{k: round(v, 1) for k, v in sorted(b.items())}}
+                    for y, b in sorted(market.items())]),
+                    hide_index=True, width="stretch")
+            else:
+                st.caption("No future-class pick pricing available.")
+        except Exception as e:
+            st.error(f"Pick market unavailable: {e}")
+
+    # -- devy board ---------------------------------------------------------
+    with t_devy:
+        from dynasty_tool.analysis import devy as dvy
+
+        st.caption("College players worth holding before they get drafted — "
+                   "ranked on early production, because a true sophomore taking "
+                   "30% of his offence is a far better bet than a senior doing "
+                   "the same.")
+        cfbd_key = secret("CFBD_API_KEY")
+        if not cfbd_key:
+            st.info("Add `CFBD_API_KEY` to Streamlit secrets to enable this "
+                    "(free at collegefootballdata.com/profile).")
+        else:
+            d1, d2 = st.columns([1, 2])
+            yr = d1.number_input("Season", 2015, 2030,
+                                 value=int(st.session_state.season) - 1)
+            pos = d2.multiselect("Positions", list(dvy.DEVY_POSITIONS),
+                                 default=list(dvy.DEVY_POSITIONS))
+            if st.button("Build devy board", type="primary"):
+                st.session_state["_devy_on"] = int(yr)
+            if st.session_state.get("_devy_on"):
+                y = int(st.session_state["_devy_on"])
+                try:
+                    with st.spinner(f"Pulling {y} college usage and recruiting…"):
+                        prospects, rep = devy_board(cfbd_key, y, tuple(pos))
+                except Exception as e:
+                    st.error(f"CFBD unavailable: {e}")
+                    prospects, rep = [], {}
+                if prospects:
+                    st.markdown(
+                        f"<div class='hq-note'>{rep['players']} qualifying players · "
+                        f"recruiting pedigree matched for {rep['pedigree_matched']} "
+                        f"({rep['pedigree_rate']:.0%}) by name+school — unmatched "
+                        f"players are still ranked, just on production alone."
+                        "</div>", unsafe_allow_html=True)
+
+                    proj = dvy.class_projection(prospects)
+                    if proj:
+                        st.markdown("<div class='hq-h'>How each incoming class "
+                                    "is shaping up</div>", unsafe_allow_html=True)
+                        st.dataframe(pd.DataFrame([{
+                            "NFL draft class": dc, "prospects": b["n"],
+                            "super elite": b["super elite"], "elite": b["elite"],
+                            "very good": b["very good"], "good": b["good"],
+                            "headliners": ", ".join(b["top"][:3]),
+                        } for dc, b in sorted(proj.items())]),
+                            hide_index=True, width="stretch")
+                        st.markdown(
+                            "<div class='hq-note'>Bands describe how much early, "
+                            "high-usage talent a class is carrying <i>today</i> — "
+                            "a leading indicator for what its rookie picks will be "
+                            "worth, not a prediction of NFL outcomes. Pair it with "
+                            "the pick pricing on the Draft classes tab: a strong "
+                            "class the market hasn't priced yet is when to buy."
+                            "</div>", unsafe_allow_html=True)
+
+                    st.markdown("<div class='hq-h'>Top prospects</div>",
+                                unsafe_allow_html=True)
+                    st.dataframe(pd.DataFrame([{
+                        "score": p.score, "player": p.name, "pos": p.position,
+                        "yr": p.class_year, "team": p.team, "conf": p.conference,
+                        "usage": f"{p.usage:.0%}", "stars": p.stars or "",
+                        "draft": p.draft_class or "",
+                    } for p in prospects[:60]]), hide_index=True, width="stretch")
+                    st.caption("Production screen, not a scouting report — there "
+                               "is no free consensus devy board, so this knows "
+                               "nothing about traits, injuries or scheme.")
+                elif rep:
+                    st.warning("No qualifying players found for that season.")
+
+
+# ===========================================================================
+elif page == "Dashboard":
     st.markdown(f"## {lg['name']}")
     st.caption(f"{A.status.replace('_', ' ')} · {len(A.rosters)} teams · "
                f"{A.playoff_teams} playoff spots · {A.reg_weeks}-wk season · "
@@ -1018,10 +1589,57 @@ elif page == "Trades":
 # ===========================================================================
 elif page == "Waivers":
     st.markdown("## Waiver wire")
+
+    # -- what the whole Sleeper population is doing right now ---------------
+    st.markdown("<div class='hq-h'>🔥 Trending on Sleeper</div>",
+                unsafe_allow_html=True)
+    st.caption("Real add/drop volume across every Sleeper league — behaviour, "
+               "not opinion. The only column that matters is whether he's "
+               "actually free in *your* league.")
+    w1, w2 = st.columns([1, 1])
+    tr_hours = w1.radio("Window", [6, 24, 48], index=1, horizontal=True,
+                        format_func=lambda h: f"{h}h")
+    tr_kind = w2.radio("Direction", ["add", "drop"], horizontal=True,
+                       format_func=lambda k: "📈 Adds" if k == "add" else "📉 Drops")
+    try:
+        trend = sleeper_trending(str(tr_kind), int(tr_hours), 40)
+    except Exception as e:
+        trend = []
+        st.error(f"Sleeper trending unavailable: {e}")
+
+    if trend:
+        # Availability is the whole point: a hot add you can't have is noise.
+        free_ids = {str(a.sleeper_id) for a in (A.available or [])}
+        val_of = {str(a.sleeper_id): a.value for a in (A.available or [])}
+        taken = {str(p.sleeper_id): rv.display
+                 for rv in A.rosters.values() for p in rv.players}
+        rows, n_free = [], 0
+        for t in trend:
+            pid = t["pid"]
+            is_free = pid in free_ids
+            n_free += 1 if is_free else 0
+            rows.append({
+                "": wh.headshot_url(pid),
+                "status": "✅ FREE" if is_free else "—",
+                "player": t.get("full_name") or pid,
+                "pos": t.get("position") or "",
+                "team": t.get("team") or "",
+                f"{tr_kind}s": f"{t['count']:,}",
+                "value": round(val_of.get(pid, 0)) or None,
+                "rostered by": taken.get(pid, ""),
+                "inj": t.get("injury_status") or "",
+            })
+        st.caption(f"{n_free} of {len(rows)} trending {tr_kind}s are still free "
+                   f"in {lg['name']}.")
+        show_roster_table(pd.DataFrame(rows), height=430)
+        if tr_kind == "add" and not n_free:
+            st.info("Everyone trending is already rostered here — normal in a "
+                    "deep dynasty league.", icon="🏜️")
+
+    st.markdown("<div class='hq-h'>Your targets</div>", unsafe_allow_html=True)
     tgts = A.waivers.get(view_uid, [])
     if tgts:
-        st.markdown(f"<div class='hq-h'>Targets for {me.display} (fill your holes)"
-                    "</div>", unsafe_allow_html=True)
+        st.caption(f"Fills the holes on {me.display}.")
         st.markdown(" ".join(
             f"<span class='hq-badge' style='background:{POS.get(t.pos, '#6b6a64')}'>"
             f"{t.name} · {t.value:,.0f}</span>" for t in tgts),

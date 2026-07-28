@@ -27,6 +27,27 @@ OUT_DIR = Path.cwd() / "out"
 PLAYERS_MAX_AGE_HOURS = 24
 VALUES_MAX_AGE_HOURS = 24
 
+# --- beat-reporter feed -----------------------------------------------------
+# News is the first source here that moves in minutes rather than hours: a
+# practice report that lands at 1pm is stale news by kickoff.
+NEWS_MAX_AGE_MINUTES = 10   # per-source feed refresh
+ARTICLE_MAX_AGE_HOURS = 72  # article bodies are immutable once published
+SUMMARY_MAX_AGE_HOURS = 720  # a summary of a fixed body never needs redoing
+NEWS_WINDOW_HOURS = 48      # how far back the feed looks
+
+# Two headlines about the same event are "the same story" when their title
+# tokens overlap this much, inside the window below.
+DEDUPE_JACCARD = 0.75
+DEDUPE_WINDOW_HOURS = 6
+
+# Player-tagging candidate pool: the top-N by dynasty value, unioned with every
+# player you roster. Never the full ~11k Sleeper blob -- a narrow pool is the
+# single most effective false-positive control in the name matcher.
+NEWS_POOL_TOP_N = 400
+
+# Claude model for the optional on-demand summaries (see ingest/summarize.py).
+SUMMARY_MODEL = "claude-haiku-4-5-20251001"
+
 # --- trade fairness thresholds (fraction of the larger side) ----------------
 FAIRNESS_EVEN = 0.05    # within  5%      -> "even"
 FAIRNESS_SLIGHT = 0.15  # 5%-15%          -> "slight edge"
