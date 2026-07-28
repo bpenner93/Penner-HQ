@@ -38,7 +38,7 @@ EXTRA_LEAGUES_PATH = dt.CACHE_DIR / "app_leagues.json"
 # Shown in the sidebar. Bumped whenever a fix needs to be *confirmed live* —
 # without it there is no way to tell "the deploy hasn't landed" apart from "the
 # fix doesn't work", and those need completely different responses.
-BUILD = "b8 · data-check"
+BUILD = "b9 · tx-scan"
 
 # Feed styling only. Guarded because this file is executed via runpy: a hard
 # import failure here would take down all 11 existing pages, not just the feed.
@@ -871,26 +871,40 @@ with st.sidebar:
                            None)
             st.caption(f"league_id `{_lid}` · {len(_raw)} rosters · "
                        f"your roster: {len((_me_raw or {}).get('players') or [])} players")
-            # Sleeper files offseason trades under low week numbers; scan a few.
+            # Sleeper files a transaction under the week it happened, and an
+            # offseason dynasty trade can land anywhere from week 0 to 18
+            # depending on when the league rolled over. Scanning only the first
+            # few weeks would miss most of them; these are disk-cached, so the
+            # wide scan costs one slow pass and nothing after.
             _tx = []
-            for _w in range(1, 4):
+            for _w in range(0, 19):
                 for _t in (_c.transactions(_lid, _w) or []):
-                    if _t.get("type") == "trade" and _t.get("status") == "complete":
+                    if _t.get("type") == "trade":
+                        _t["_week"] = _w
                         _tx.append(_t)
             _tx.sort(key=lambda t: int(t.get("status_updated") or 0), reverse=True)
+            _names = bundle["meta"] or {}
             if _tx:
                 import datetime as _dt
-                st.caption(f"{len(_tx)} completed trades Sleeper reports:")
-                for _t in _tx[:5]:
+                st.caption(f"**{len(_tx)} trades** Sleeper reports for this league:")
+                for _t in _tx[:8]:
                     _ms = int(_t.get("status_updated") or 0)
                     _when = (_dt.datetime.fromtimestamp(_ms / 1000).strftime("%b %d")
                              if _ms else "?")
-                    _n = len(_t.get("adds") or {})
-                    st.caption(f"· {_when} — {_n} player(s) moved")
+                    _adds = _t.get("adds") or {}
+                    _who = ", ".join(
+                        (_names.get(str(p), {}) or {}).get("full_name") or str(p)
+                        for p in list(_adds)[:3]) or "picks only"
+                    _pk = len(_t.get("draft_picks") or [])
+                    st.caption(f"· wk{_t['_week']} {_when} · {_t.get('status')} · "
+                               f"{_who}" + (f" · +{_pk} picks" if _pk else ""))
+                st.caption("If a trade above is missing from your roster, that's a "
+                           "real bug — tell me which one.")
             else:
-                st.caption("⚠️ Sleeper reports **no completed trades** in weeks 1-3 "
-                           "of this league. If you traded, check the league "
-                           "selector above — the trade may be in a different one.")
+                st.caption("⚠️ Sleeper reports **no trades at all** across weeks "
+                           "0-18 for this league_id. That means the trades are in "
+                           "a different league than the one selected above — the "
+                           "app is reading exactly what Sleeper returns.")
         except Exception as _e:
             st.caption(f"check failed: {_e}")
 
