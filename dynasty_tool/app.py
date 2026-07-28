@@ -354,6 +354,33 @@ def dp_pick_rows():
     return mc.values_now(DiskCache(dt.CACHE_DIR), path=mc.PICKS_PATH)
 
 
+@st.cache_data(ttl=24 * 3600, show_spinner=False)
+def devy_board(_api_key: str, year: int, positions: tuple):
+    """College usage + recruiting pedigree -> a ranked devy board.
+
+    ``_api_key`` is underscore-prefixed so Streamlit skips hashing it: the cache
+    key is (year, positions), and the key never lands in a cache entry.
+
+    Four recruiting classes are pulled so that freshmen through seniors all
+    resolve a class year; that plus one league-wide usage call is the whole
+    request budget.
+    """
+    from dynasty_tool.analysis import devy as dvy
+    from dynasty_tool.ingest.cfbd_client import CfbdClient
+    client = CfbdClient(_api_key, DiskCache(dt.CACHE_DIR))
+    usage = client.player_usage(int(year))
+    recruits: list = []
+    for back in range(0, 5):
+        try:
+            recruits.extend(client.recruits(int(year) - back))
+        except Exception:
+            continue          # one missing class shouldn't blank the board
+    prospects, report = dvy.build_board(
+        usage, dvy.index_recruits(recruits), season=int(year),
+        positions=positions or dvy.DEVY_POSITIONS)
+    return prospects, report
+
+
 # ---------------------------------------------------------------------------
 # small render helpers
 # ---------------------------------------------------------------------------
@@ -875,8 +902,9 @@ elif page == "Movers":
             "Δ": round(m.delta), "Δ%": round(m.pct, 1),
         } for m in rows]), hide_index=True, width="stretch")
 
-    t_dp, t_ktc, t_class = st.tabs(
-        ["📊 Dynasty values (experts)", "🔥 KTC (the crowd)", "🎓 Draft classes"])
+    t_dp, t_ktc, t_class, t_devy = st.tabs(
+        ["📊 Dynasty values (experts)", "🔥 KTC (the crowd)", "🎓 Draft classes",
+         "🔭 Devy board"])
 
     # -- expert consensus, week over week -----------------------------------
     with t_dp:
@@ -996,6 +1024,76 @@ elif page == "Movers":
                 st.caption("No future-class pick pricing available.")
         except Exception as e:
             st.error(f"Pick market unavailable: {e}")
+
+    # -- devy board ---------------------------------------------------------
+    with t_devy:
+        from dynasty_tool.analysis import devy as dvy
+
+        st.caption("College players worth holding before they get drafted — "
+                   "ranked on early production, because a true sophomore taking "
+                   "30% of his offence is a far better bet than a senior doing "
+                   "the same.")
+        cfbd_key = secret("CFBD_API_KEY")
+        if not cfbd_key:
+            st.info("Add `CFBD_API_KEY` to Streamlit secrets to enable this "
+                    "(free at collegefootballdata.com/profile).")
+        else:
+            d1, d2 = st.columns([1, 2])
+            yr = d1.number_input("Season", 2015, 2030,
+                                 value=int(st.session_state.season) - 1)
+            pos = d2.multiselect("Positions", list(dvy.DEVY_POSITIONS),
+                                 default=list(dvy.DEVY_POSITIONS))
+            if st.button("Build devy board", type="primary"):
+                st.session_state["_devy_on"] = int(yr)
+            if st.session_state.get("_devy_on"):
+                y = int(st.session_state["_devy_on"])
+                try:
+                    with st.spinner(f"Pulling {y} college usage and recruiting…"):
+                        prospects, rep = devy_board(cfbd_key, y, tuple(pos))
+                except Exception as e:
+                    st.error(f"CFBD unavailable: {e}")
+                    prospects, rep = [], {}
+                if prospects:
+                    st.markdown(
+                        f"<div class='hq-note'>{rep['players']} qualifying players · "
+                        f"recruiting pedigree matched for {rep['pedigree_matched']} "
+                        f"({rep['pedigree_rate']:.0%}) by name+school — unmatched "
+                        f"players are still ranked, just on production alone."
+                        "</div>", unsafe_allow_html=True)
+
+                    proj = dvy.class_projection(prospects)
+                    if proj:
+                        st.markdown("<div class='hq-h'>How each incoming class "
+                                    "is shaping up</div>", unsafe_allow_html=True)
+                        st.dataframe(pd.DataFrame([{
+                            "NFL draft class": dc, "prospects": b["n"],
+                            "super elite": b["super elite"], "elite": b["elite"],
+                            "very good": b["very good"], "good": b["good"],
+                            "headliners": ", ".join(b["top"][:3]),
+                        } for dc, b in sorted(proj.items())]),
+                            hide_index=True, width="stretch")
+                        st.markdown(
+                            "<div class='hq-note'>Bands describe how much early, "
+                            "high-usage talent a class is carrying <i>today</i> — "
+                            "a leading indicator for what its rookie picks will be "
+                            "worth, not a prediction of NFL outcomes. Pair it with "
+                            "the pick pricing on the Draft classes tab: a strong "
+                            "class the market hasn't priced yet is when to buy."
+                            "</div>", unsafe_allow_html=True)
+
+                    st.markdown("<div class='hq-h'>Top prospects</div>",
+                                unsafe_allow_html=True)
+                    st.dataframe(pd.DataFrame([{
+                        "score": p.score, "player": p.name, "pos": p.position,
+                        "yr": p.class_year, "team": p.team, "conf": p.conference,
+                        "usage": f"{p.usage:.0%}", "stars": p.stars or "",
+                        "draft": p.draft_class or "",
+                    } for p in prospects[:60]]), hide_index=True, width="stretch")
+                    st.caption("Production screen, not a scouting report — there "
+                               "is no free consensus devy board, so this knows "
+                               "nothing about traits, injuries or scheme.")
+                elif rep:
+                    st.warning("No qualifying players found for that season.")
 
 
 # ===========================================================================
