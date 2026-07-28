@@ -35,6 +35,13 @@ from dynasty_tool.write.sleeper_deeplink import sleeper_lineup_url
 INK, SERIES, POS, TIER, STATUS = wh.INK, wh.SERIES, wh.POS_COLORS, wh.TIER_COLORS, wh.STATUS
 EXTRA_LEAGUES_PATH = dt.CACHE_DIR / "app_leagues.json"
 
+# Feed styling only. Guarded because this file is executed via runpy: a hard
+# import failure here would take down all 11 existing pages, not just the feed.
+try:
+    from dynasty_tool.analysis.news_render import NEWS_CSS
+except Exception:  # pragma: no cover
+    NEWS_CSS = ""
+
 
 def _is_cloud() -> bool:
     """Cloud (public) build: show only Sleeper dynasty leagues; never seed the
@@ -139,6 +146,7 @@ html, body, [data-testid="stAppViewContainer"] {{ background: var(--page); }}
 .hq-asset .who {{ color: var(--muted); font-size: 11.5px; }}
 .hq-asset .val {{ margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }}
 a {{ color: var(--accent); }}
+{NEWS_CSS}
 </style>
 """, unsafe_allow_html=True)
 
@@ -236,6 +244,80 @@ def nfl_week() -> int:
         return int((sleeper_client().state() or {}).get("week") or 0)
     except Exception:
         return 0
+
+
+# ---------------------------------------------------------------------------
+# beat feed loaders
+# ---------------------------------------------------------------------------
+def secret(name: str) -> str:
+    """st.secrets first, env second. Never hardcode a key in this repo."""
+    try:
+        v = st.secrets.get(name, "")
+        if v:
+            return str(v)
+    except Exception:
+        pass
+    return str(os.environ.get(name, "") or "")
+
+
+@st.cache_data(ttl=dt.NEWS_MAX_AGE_MINUTES * 60, show_spinner=False)
+def load_news(_sig: str, twitter_key: str):
+    """Every enabled source, in parallel. Returns (items as dicts, health as
+    dicts) — plain data, so the cache stays pickle-safe and version-tolerant.
+
+    ``_sig`` is a hash of the enabled source list: editing feeds.json changes it
+    and busts this cache immediately, rather than serving a stale feed.
+    """
+    from dynasty_tool.ingest.news_client import NewsClient, fetch_all
+    from dynasty_tool.ingest.news_model import load_sources
+    specs = load_sources()
+    client = NewsClient(DiskCache(dt.CACHE_DIR), twitter_key=twitter_key)
+    items, health = fetch_all(client, specs)
+    return [i.to_dict() for i in items], [h.__dict__ for h in health]
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def my_rostered_ids(username: str, season: str) -> tuple:
+    """Every sleeper player id you roster, across ALL your dynasty leagues.
+
+    Three cheap endpoints — no chain walk, no DynastyProcess CSVs, no Monte
+    Carlo. Deliberately not derived from ``load_league``: the feed should flag a
+    player you own in *any* league, not just the one selected in the sidebar,
+    and this costs ~1% of a full league analysis.
+    """
+    c = sleeper_client()
+    u = c.user(username) or {}
+    uid = str(u.get("user_id") or "")
+    if not uid:
+        return ()
+    out: set[str] = set()
+    for lg in c.user_leagues(uid, season) or []:
+        if (lg.get("settings") or {}).get("type") != 2:
+            continue
+        for r in c.rosters(str(lg.get("league_id") or "")) or []:
+            if str(r.get("owner_id") or "") != uid:
+                continue
+            for pid in (r.get("players") or []):
+                out.add(str(pid))
+    return tuple(sorted(out))
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def news_index(qb_format: int, extra_ids: tuple) -> dict:
+    """Name index over (top-N by value ∪ your rostered players).
+
+    Never the full ~11k Sleeper blob: shrinking the candidate pool is the single
+    most effective false-positive control in the tagger, and it is what keeps two
+    different Josh Allens from making every mention ambiguous.
+    """
+    from dynasty_tool.analysis.news_feed import build_name_index
+    players, _picks, ids = dp_frames()
+    ecr = wh.ecr_map(players, ids, qb_format=qb_format)
+    ranked = sorted(ecr.items(),
+                    key=lambda kv: -(kv[1].get("value") or 0))[:dt.NEWS_POOL_TOP_N]
+    pool = {str(pid) for pid, _ in ranked} | {str(p) for p in (extra_ids or ())}
+    meta = wh.meta_subset(sleeper_client().players(), pool)
+    return build_name_index(meta, pool=pool)
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +513,9 @@ def year_flow_fig(res, uid: str) -> go.Figure:
 # sidebar — league switcher, team switcher, grouped nav (everything on the left)
 # ---------------------------------------------------------------------------
 NAV = [
+    # First: this is the several-times-a-day page, the one replacing the Twitter
+    # habit, so it should be the first thing your thumb reaches.
+    ("WIRE", [("📰", "Beat Feed")]),
     ("LINEUP", [("📊", "Dashboard"), ("👥", "My Team"), ("⚡", "Start/Sit"),
                 ("🆚", "Matchups")]),
     ("SEASON", [("🏆", "Playoff Race"), ("📈", "History & SOS")]),
@@ -543,7 +628,183 @@ def show_roster_table(df: pd.DataFrame, height: int | None = None):
 
 
 # ===========================================================================
-if page == "Dashboard":
+if page == "Beat Feed":
+    # Imports are lazy and local: this file is executed via runpy, so a failure
+    # importing the news stack must not take down the other 11 pages.
+    import time as _time
+    from dynasty_tool.analysis import news_feed as nf
+    from dynasty_tool.analysis import news_render as nr
+    from dynasty_tool.ingest.news_model import NewsItem, load_sources, mute_terms, team_names
+
+    st.markdown("## Beat feed")
+    st.caption("NFL beat writers and news wires — the Twitter replacement.")
+
+    now_ms = int(_time.time() * 1000)
+    specs = load_sources()
+    sig = str(hash(tuple(sorted((s.id, s.ref) for s in specs))))
+    tw_key = secret("TWITTERAPI_IO_KEY")
+    anthropic_key = secret("ANTHROPIC_API_KEY")
+
+    with st.spinner("Fetching the wire…"):
+        raw_items, raw_health = load_news(sig, tw_key)
+    items = [NewsItem.from_dict(d) for d in raw_items]
+
+    # -- tag against your players, then collapse duplicates ------------------
+    mine = my_rostered_ids(st.session_state.username, st.session_state.season)
+    index = news_index(int(A.qb_format), tuple(mine))
+    items, report = nf.tag_items(items, index)
+    items = nf.dedupe(items, jaccard=dt.DEDUPE_JACCARD,
+                      window_ms=dt.DEDUPE_WINDOW_HOURS * 3600 * 1000)
+    meta = index.get("meta") or {}
+    mute = mute_terms()
+    since = now_ms - dt.NEWS_WINDOW_HOURS * 3600 * 1000
+
+    ok = [h for h in raw_health if h.get("ok")]
+    bad = [h for h in raw_health if not h.get("ok")]
+    c1, c2, c3, c4 = st.columns(4)
+    tile(c1, "items", f"{len(items):,}", f"last {dt.NEWS_WINDOW_HOURS}h window")
+    tile(c2, "sources", f"{len(ok)}/{len(raw_health)}",
+         "all healthy" if not bad else f"{len(bad)} failing")
+    tile(c3, "your players", f"{len(mine)}", "across every dynasty league")
+    newest = max((i.published_ms for i in items), default=0)
+    tile(c4, "newest", nr.rel_time(now_ms, newest) or "—", "ago")
+
+    if bad:
+        st.warning(f"{len(bad)} of {len(raw_health)} sources failed — the feed is "
+                   "incomplete. Fix them by editing `dynasty_tool/ingest/feeds.json`.")
+    with st.expander(f"Source health — {len(ok)}/{len(raw_health)} OK"):
+        st.dataframe(pd.DataFrame([{
+            "ok": "✅" if h.get("ok") else "❌", "source": h.get("label"),
+            "kind": h.get("kind"), "team": h.get("team") or "—",
+            "items": h.get("n_items"), "cached": h.get("from_cache"),
+            "error": h.get("error") or "",
+        } for h in raw_health]), hide_index=True, width="stretch")
+    st.markdown(f"<div class='hq-note'>Player tagging — {report.line()}. Matching "
+                "needs first <i>and</i> last name; ambiguous mentions are skipped "
+                "rather than guessed.</div>", unsafe_allow_html=True)
+
+    if not anthropic_key:
+        st.caption("✨ AI summaries are off — add `ANTHROPIC_API_KEY` to Streamlit "
+                   "secrets to enable the Summarize and Digest buttons.")
+    if not tw_key:
+        st.caption("🐦 X/Twitter sources are off — add `TWITTERAPI_IO_KEY` to "
+                   "Streamlit secrets to pull actual beat-reporter tweets.")
+
+    t_mine, t_all, t_team = st.tabs(
+        ["⭐ My Players", "🌐 Around the League", "🏟️ By Team"])
+
+    def _summarize_button(it, key_prefix: str):
+        """Per-item ✨ Summarize. The result is written to a NON-widget session
+        key — writing a widget's own key after the widget exists is forbidden by
+        Streamlit (see the Trades page comment at the top of that branch)."""
+        if not anthropic_key:
+            return ""
+        skey = f"_sum_{it.id}"
+        if st.session_state.get(skey):
+            return st.session_state[skey]
+        if st.button("✨ Summarize", key=f"{key_prefix}_{it.id}", type="tertiary"):
+            from dynasty_tool.ingest import summarize as sm
+            cache = DiskCache(dt.CACHE_DIR)
+            with st.spinner("Reading the article…"):
+                body = sm.fetch_article(it.url, cache) or it.text
+                try:
+                    st.session_state[skey] = sm.summarize_item(
+                        anthropic_key, it.title or it.text[:80], body, cache)
+                except Exception as e:
+                    st.error(f"Summary failed: {e}")
+            st.rerun()
+        return ""
+
+    def _render(rows, chips=True, key_prefix="f"):
+        """One markdown call for the whole list — per-item calls would add
+        Streamlit's inter-container padding and read as a stack of widgets."""
+        st.markdown(nr.feed_html(rows, now_ms, meta, show_chips=chips),
+                    unsafe_allow_html=True)
+        if anthropic_key:
+            with st.expander("✨ Summarize an item"):
+                for it in rows[:25]:
+                    st.caption((it.title or it.text)[:90])
+                    _summarize_button(it, key_prefix)
+
+    # -- tab 1: My Players --------------------------------------------------
+    with t_mine:
+        mineset = {str(p) for p in mine}
+        mine_items = nf.filter_items(items, player_ids=mineset, since_ms=since,
+                                     mute=mute)
+        if anthropic_key and mine_items:
+            if st.button("✨ Digest my players", type="primary"):
+                from dynasty_tool.ingest import summarize as sm
+                blocks = [(meta.get(pid, {}).get("full_name", pid),
+                           [f"{i.title} {i.text}" for i in its])
+                          for pid, its in nf.group_by_player(
+                              mine_items, sorted(mineset))]
+                with st.spinner("Reading everything about your roster…"):
+                    try:
+                        st.session_state["_news_digest"] = sm.digest_players(
+                            anthropic_key, blocks, DiskCache(dt.CACHE_DIR))
+                    except Exception as e:
+                        st.error(f"Digest failed: {e}")
+        if st.session_state.get("_news_digest"):
+            st.markdown("<div class='nf-sum'><b>✨ today's digest</b><br>"
+                        + st.session_state["_news_digest"].replace("\n", "<br>")
+                        + "</div>", unsafe_allow_html=True)
+
+        if not mine_items:
+            st.info(f"No news about your players in the last "
+                    f"{dt.NEWS_WINDOW_HOURS}h.")
+        else:
+            # Most-covered players first — the guys the wire is actually
+            # talking about today rise to the top of your section.
+            order = sorted(
+                {p for i in mine_items for p in i.player_ids},
+                key=lambda p: (-len([1 for i in mine_items if p in i.player_ids]),
+                               meta.get(p, {}).get("full_name", "")))
+            for pid, its in nf.group_by_player(mine_items, order):
+                m = meta.get(pid, {})
+                logo = wh.team_logo_url(m.get("team"))
+                st.markdown(
+                    f"<div class='nf-pgroup'>"
+                    f"<img src='{wh.headshot_url(pid)}' alt=''>"
+                    f"<span><span class='n'>{nr.esc(m.get('full_name') or pid)}</span> "
+                    f"{pos_badge(str(m.get('position') or ''))}"
+                    f"<span class='x'>{nr.esc(m.get('team') or '')} · "
+                    f"{len(its)} update{'s' if len(its) != 1 else ''}</span></span>"
+                    + (f"<img src='{logo}' alt='' style='margin-left:auto'>" if logo else "")
+                    + "</div>", unsafe_allow_html=True)
+                _render(its, chips=False, key_prefix=f"m{pid}")
+
+    # -- tab 2: Around the League -------------------------------------------
+    with t_all:
+        names = team_names()
+        f1, f2, f3 = st.columns([1, 1, 2])
+        pick_team = f1.multiselect("Team", sorted(names),
+                                   format_func=lambda t: f"{t} — {names[t]}")
+        pick_kind = f2.multiselect("Type", ["post", "article"])
+        q = f3.text_input("Search", placeholder="player, coach, phrase…")
+        rows = nf.filter_items(items, query=q, teams=pick_team, kinds=pick_kind,
+                               since_ms=since, mute=mute)
+        st.caption(f"{len(rows):,} items")
+        n = st.session_state.setdefault("_news_n", 25)
+        _render(rows[:n], key_prefix="a")
+        if len(rows) > n:
+            if st.button(f"Load 25 more ({len(rows) - n:,} left)"):
+                st.session_state["_news_n"] = n + 25
+                st.rerun()
+
+    # -- tab 3: By Team -----------------------------------------------------
+    with t_team:
+        names = team_names()
+        opts = sorted(names)
+        sel = st.selectbox("Team", opts, format_func=lambda t: f"{t} — {names[t]}",
+                           key="_news_team")
+        rows = nf.filter_items(items, teams=[sel], since_ms=since, mute=mute)
+        beat = sorted({s.label for s in specs if s.team == sel})
+        st.caption(f"{len(rows):,} items · beat: {', '.join(beat) or '—'}")
+        _render(rows[:50], key_prefix="t")
+
+
+# ===========================================================================
+elif page == "Dashboard":
     st.markdown(f"## {lg['name']}")
     st.caption(f"{A.status.replace('_', ' ')} · {len(A.rosters)} teams · "
                f"{A.playoff_teams} playoff spots · {A.reg_weeks}-wk season · "
