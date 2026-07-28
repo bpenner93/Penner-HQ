@@ -175,3 +175,77 @@ def test_attribution_leaves_unknown_handles_alone():
     it = NewsItem(id="1", source_id="s", source_label="S", kind="post",
                   author_handle="@nobody", text="x")
     assert attribute_teams([it], {"joebuscaglia": "BUF"})[0].team == ""
+
+
+# ------------------------------------------------------ rate limiting -------
+class _Resp:
+    def __init__(self, status=200, text="{}", headers=None):
+        self.status_code, self.text = status, text
+        self.headers = headers or {}
+        self.content = text.encode()
+    def json(self):
+        import json as _j
+        return _j.loads(self.text or "{}")
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            import requests
+            raise requests.HTTPError(str(self.status_code))
+
+
+class _TimedSession:
+    """Records the wall-clock moment of every call, to prove pacing."""
+    def __init__(self, resp=None):
+        import time as _t
+        self._t = _t
+        self.stamps: list[float] = []
+        self.resp = resp or _Resp(200, TWEETS)
+    def get(self, url, params=None, headers=None, timeout=None):
+        self.stamps.append(self._t.monotonic())
+        return self.resp
+
+
+def test_x_calls_are_serialised_not_fired_in_parallel(tmp_path):
+    """All nine X sources hitting a metered API at once is what produced a
+    wall of HTTP 429s."""
+    s = _TimedSession()
+    c = NewsClient(DiskCache(tmp_path), session=s, twitter_key="k")
+    c.PACE_SECONDS = 0.05
+    specs = [SourceSpec(id=f"x{i}", kind="twitter_search", label=f"g{i}",
+                        ref=f"handle{i}") for i in range(5)]
+    fetch_all(c, specs, max_workers=5)
+    assert len(s.stamps) == 5
+    gaps = [b - a for a, b in zip(sorted(s.stamps), sorted(s.stamps)[1:])]
+    assert all(g >= 0.04 for g in gaps), gaps      # none overlapped
+
+
+def test_rss_sources_are_not_paced(tmp_path):
+    """Independent hosts should still burst in parallel; pacing everything
+    would make a 40-source refresh crawl."""
+    from dynasty_tool.tests.fixtures_news import RSS_PFT
+    s = _TimedSession(_Resp(200, RSS_PFT))
+    c = NewsClient(DiskCache(tmp_path), session=s)
+    c.PACE_SECONDS = 5.0        # would be obvious if it applied
+    specs = [SourceSpec(id=f"r{i}", kind="rss", label=f"f{i}",
+                        ref=f"https://e{i}.com/feed") for i in range(4)]
+    import time as _t
+    t0 = _t.monotonic()
+    fetch_all(c, specs, max_workers=4)
+    assert _t.monotonic() - t0 < 2.0
+
+
+def test_429_body_is_surfaced_so_throttling_and_no_credit_differ(tmp_path):
+    """A metered API returns 429 for both 'slow down' and 'out of credit'.
+    Those need opposite responses, so the message has to reach the user."""
+    s = _TimedSession(_Resp(429, '{"msg":"insufficient balance"}'))
+    c = NewsClient(DiskCache(tmp_path), session=s, twitter_key="k")
+    c.PACE_SECONDS = 0.0
+    _items, health = fetch_all(c, [SEARCH])
+    assert not health[0].ok
+    assert "429" in health[0].error and "insufficient balance" in health[0].error
+
+
+def test_retry_after_header_is_honoured(tmp_path):
+    from dynasty_tool.ingest.news_client import _retry_after
+    assert _retry_after(_Resp(429, "", {"Retry-After": "3"})) == 3.0
+    assert _retry_after(_Resp(429, "", {})) == 0.0
+    assert _retry_after(_Resp(429, "", {"Retry-After": "soon"})) == 0.0

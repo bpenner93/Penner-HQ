@@ -22,6 +22,7 @@ thread-local and doing so is unsupported.
 from __future__ import annotations
 
 import hashlib
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Optional
@@ -36,6 +37,17 @@ from .news_parse import PARSERS
 USER_AGENT = "Penner-HQ/1.0 (+https://github.com/bpenner93/Penner-HQ)"
 BSKY_BASE = "https://public.api.bsky.app/xrpc"
 TWITTERAPI_BASE = "https://api.twitterapi.io"
+
+
+def _retry_after(resp) -> float:
+    """Seconds from a Retry-After header, 0 when absent or unparseable.
+
+    Honouring the server's own number beats guessing at a backoff curve.
+    """
+    try:
+        return max(0.0, float(str(resp.headers.get("Retry-After", "")).strip()))
+    except (TypeError, ValueError, AttributeError):
+        return 0.0
 
 
 def build_from_query(handles: str, exclude_replies: bool = True) -> str:
@@ -62,6 +74,22 @@ class NewsClient:
         self.max_retries = max_retries
         self.twitter_key = twitter_key or ""
         self.fetch_count = 0
+        # RSS hosts are independent and happily take a parallel burst. A metered
+        # API is not: firing all nine X sources at once through the thread pool
+        # trips twitterapi.io's per-second limit and every one of them 429s.
+        # These serialise X calls behind one lock with a minimum gap.
+        self._paced_lock = threading.Lock()
+        self._paced_last = 0.0
+
+    PACED_KINDS = ("twitter", "twitter_search")
+    PACE_SECONDS = 1.1
+
+    def _pace(self) -> None:
+        with self._paced_lock:
+            gap = time.monotonic() - self._paced_last
+            if gap < self.PACE_SECONDS:
+                time.sleep(self.PACE_SECONDS - gap)
+            self._paced_last = time.monotonic()
 
     # -- request building ---------------------------------------------------
     def request_for(self, spec: SourceSpec) -> tuple[str, dict, dict]:
@@ -115,8 +143,11 @@ class NewsClient:
             return self.cache.get_text(key), True
 
         url, params, headers = self.request_for(spec)
+        paced = spec.kind in self.PACED_KINDS
         last: Optional[Exception] = None
         for attempt in range(self.max_retries):
+            if paced:
+                self._pace()
             try:
                 resp = self.session.get(url, params=params or None,
                                         headers=headers, timeout=self.timeout)
@@ -130,8 +161,14 @@ class NewsClient:
                 self.cache.put_text(key, "")
                 return "", False
             if resp.status_code == 429 or resp.status_code >= 500:
-                last = RuntimeError(f"HTTP {resp.status_code}")
-                time.sleep(0.75 * (attempt + 1))
+                # Carry the body: a metered API uses 429 both for "slow down"
+                # and for "you are out of credit", and those need opposite
+                # responses from the user. The message says which.
+                detail = (resp.text or "").strip()[:160]
+                last = RuntimeError(
+                    f"HTTP {resp.status_code}" + (f" — {detail}" if detail else ""))
+                wait_s = _retry_after(resp) or (1.5 * (attempt + 1))
+                time.sleep(min(wait_s, 10.0))
                 continue
             resp.raise_for_status()
             text = resp.text or ""
