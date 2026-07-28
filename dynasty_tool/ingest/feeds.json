@@ -90,59 +90,31 @@
       "enabled": true
     },
     {
-      "id": "x-afc-east",
-      "name": "AFC East beat (X)",
+      "id": "x-beat-1",
+      "name": "Beat writers 1/4 (X)",
       "type": "twitter_search",
-      "query": "JoeBuscaglia SalSports agetzenberg flasportsbuzz Marcel_LJ DavidFurones_ MikeReiss DougKyed kguregian RichCimini BrianCoz ZackBlatt",
+      "query": "DJBienAime JeffDuncan_ Jeff_Legwold JennaLaineESPN LATimesklein Mike_E_Kaye NFLSTROUD NYPost_Schwartz NickKosmider RobDemovsky RomeovilleKid SalSports Tim_McManus adamjahns alec_lewis bepryor calvinwatkins flasportsbuzz jamisonhensley kguregian nicksuss sarahbarshop toddarcher",
       "enabled": true
     },
     {
-      "id": "x-afc-north",
-      "name": "AFC North beat (X)",
+      "id": "x-beat-2",
+      "name": "Beat writers 2/4 (X)",
       "type": "twitter_search",
-      "query": "jamisonhensley jeffzrebiec jonas_shaffer Ben_Baby pauldehnerjr KelseyLConway MaryKayCabot AkronJackson DanielOyefusi bepryor MarkKaboly gerrydulac",
+      "query": "BenStandig Ben_Baby BradyHenderson CourtneyRCronin DOrlandoAJC ESPNdirocco HolderLarry JimmyKempski JoeBuscaglia JoelAErickson JordanRaanan JourdanRodrigue KelseyLConway MikeDugar RichCimini ZackBlatt azbobbymac davebirkett jeffzrebiec john_keim pauldehnerjr tashanreed",
       "enabled": true
     },
     {
-      "id": "x-afc-south",
-      "name": "AFC South beat (X)",
+      "id": "x-beat-3",
+      "name": "Beat writers 3/4 (X)",
       "type": "twitter_search",
-      "query": "AaronWilson_NFL DJBienAime HolderStephen RomeovilleKid JoelAErickson ESPNdirocco Demetrius82 TDavenport_NFL joerexrode nicksuss",
+      "query": "AaronWilson_NFL BrianCoz DDuggan21 DanielOyefusi Demetrius82 DougHaller DougKyed E_Woodyard Jeff_McLane Kat_Terrell MarkKaboly MaryKayCabot ParkerJGabriel TerrinWaack agetzenberg colton_pouncy danielpopper joerexrode jonas_shaffer josephperson mattschneidman nwagoner pgsweeney",
       "enabled": true
     },
     {
-      "id": "x-afc-west",
-      "name": "AFC West beat (X)",
+      "id": "x-beat-4",
+      "name": "Beat writers 4/4 (X)",
       "type": "twitter_search",
-      "query": "Jeff_Legwold NickKosmider ParkerJGabriel adamteicher ByNateTaylor pgsweeney danielpopper KrisRhim tashanreed VinnyBonsignore",
-      "enabled": true
-    },
-    {
-      "id": "x-nfc-east",
-      "name": "NFC East beat (X)",
-      "type": "twitter_search",
-      "query": "toddarcher jonmachota calvinwatkins JordanRaanan DDuggan21 NYPost_Schwartz Tim_McManus Jeff_McLane JimmyKempski john_keim BenStandig NickiJhabvala",
-      "enabled": true
-    },
-    {
-      "id": "x-nfc-north",
-      "name": "NFC North beat (X)",
-      "type": "twitter_search",
-      "query": "CourtneyRCronin adamjahns BradBiggs davebirkett colton_pouncy E_Woodyard RobDemovsky mattschneidman ByRyanWood alec_lewis SeifertESPN GoesslingStrib",
-      "enabled": true
-    },
-    {
-      "id": "x-nfc-south",
-      "name": "NFC South beat (X)",
-      "type": "twitter_search",
-      "query": "DOrlandoAJC TerrinWaack DNewtonespn josephperson Mike_E_Kaye Kat_Terrell HolderLarry JeffDuncan_ JennaLaineESPN gregauman NFLSTROUD",
-      "enabled": true
-    },
-    {
-      "id": "x-nfc-west",
-      "name": "NFC West beat (X)",
-      "type": "twitter_search",
-      "query": "joshweinfuss DougHaller azbobbymac JourdanRodrigue sarahbarshop LATimesklein nwagoner mattbarrows CamInman BradyHenderson MikeDugar gbellseattle",
+      "query": "AkronJackson BradBiggs ByNateTaylor ByRyanWood CamInman DNewtonespn DavidFurones_ GoesslingStrib HolderStephen KrisRhim Marcel_LJ MikeReiss NickiJhabvala SeifertESPN TDavenport_NFL VinnyBonsignore adamteicher gbellseattle gerrydulac gregauman jonmachota joshweinfuss mattbarrows",
       "enabled": true
     }
   ],

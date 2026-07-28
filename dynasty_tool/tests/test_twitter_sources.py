@@ -105,7 +105,7 @@ def test_beat_writers_are_batched_not_one_source_per_team():
     assert not [s for b in reg["teams"].values() for s in b["sources"]
                 if s["type"] == "twitter_search"]
     x = [s for s in load_sources() if s.kind == "twitter_search"]
-    assert len(x) == 9          # 8 divisions + 1 national insiders group
+    assert len(x) == 5          # 4 balanced beat groups + national insiders
     assert all(s.enabled for s in x)
 
 
@@ -124,8 +124,8 @@ def test_all_32_teams_are_covered_by_eight_division_calls():
     """The whole point: 8 pulls instead of 32, with nothing dropped."""
     from dynasty_tool.ingest.news_model import handle_teams
     specs = [s for s in load_sources() if s.kind == "twitter_search"]
-    divisions = [s for s in specs if s.id.startswith("x-")]
-    assert len(divisions) == 8
+    divisions = [s for s in specs if s.id.startswith("x-beat")]
+    assert len(divisions) == 4
     covered = {handle_teams()[h.lower()] for s in divisions
                for h in s.ref.split() if h.lower() in handle_teams()}
     assert len(covered) == 32
@@ -139,8 +139,24 @@ def test_no_handle_is_billed_twice_across_divisions():
 
 
 def test_queries_stay_short_enough_for_the_search_api():
+    """X caps a search query near 512 chars. Groups are bin-packed by length
+    rather than by division precisely to keep headroom under it."""
     for s in [s for s in load_sources() if s.kind == "twitter_search"]:
-        assert len(build_from_query(s.ref)) < 500
+        assert len(build_from_query(s.ref)) < 490
+
+
+def test_x_pacing_respects_the_documented_free_tier_limit():
+    """twitterapi.io free tier is one request every 5 seconds, and says so in
+    its own 429 body. Pacing below that produced a wall of failures."""
+    from dynasty_tool.ingest.news_client import NewsClient
+    assert NewsClient.PACE_SECONDS >= 5.0
+
+
+def test_x_sources_are_cached_longer_than_rss():
+    """A five-second-per-call source should not be refetched on the same
+    cadence as a free RSS host that answers instantly."""
+    from dynasty_tool import config as cfg
+    assert cfg.NEWS_X_MAX_AGE_MINUTES > cfg.NEWS_MAX_AGE_MINUTES
 
 
 def test_team_attribution_survives_batching():

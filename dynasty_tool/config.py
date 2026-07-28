@@ -31,6 +31,10 @@ VALUES_MAX_AGE_HOURS = 24
 # News is the first source here that moves in minutes rather than hours: a
 # practice report that lands at 1pm is stale news by kickoff.
 NEWS_MAX_AGE_MINUTES = 10   # per-source feed refresh
+# X sources are rate-limited to one request every 5 seconds on twitterapi.io's
+# free tier, so a full sweep costs real wall-clock time. Cache them longer than
+# a free RSS host that answers instantly.
+NEWS_X_MAX_AGE_MINUTES = 30
 ARTICLE_MAX_AGE_HOURS = 72  # article bodies are immutable once published
 SUMMARY_MAX_AGE_HOURS = 720  # a summary of a fixed body never needs redoing
 NEWS_WINDOW_HOURS = 48      # how far back the feed looks

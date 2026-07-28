@@ -82,7 +82,10 @@ class NewsClient:
         self._paced_last = 0.0
 
     PACED_KINDS = ("twitter", "twitter_search")
-    PACE_SECONDS = 1.1
+    # twitterapi.io's free tier documents "one request every 5 seconds" and
+    # answers 429 with that exact message. 5.2 leaves a little headroom for
+    # clock skew rather than sitting exactly on the limit.
+    PACE_SECONDS = 5.2
 
     def _pace(self) -> None:
         with self._paced_lock:
@@ -138,7 +141,12 @@ class NewsClient:
         converts that into a SourceHealth rather than letting it escape."""
         key = self.cache_key(spec)
         if max_age_hours is None:
-            max_age_hours = config.NEWS_MAX_AGE_MINUTES / 60.0
+            # X costs 5 seconds of wall clock per call on the free tier, so it
+            # earns a longer cache than a free RSS host that answers instantly.
+            minutes = (config.NEWS_X_MAX_AGE_MINUTES
+                       if spec.kind in self.PACED_KINDS
+                       else config.NEWS_MAX_AGE_MINUTES)
+            max_age_hours = minutes / 60.0
         if self.cache.fresh(key, max_age_hours):
             return self.cache.get_text(key), True
 
@@ -208,7 +216,7 @@ def _one(client: NewsClient, spec: SourceSpec) -> tuple[list[NewsItem], SourceHe
 
 def fetch_all(client: NewsClient, specs: list[SourceSpec],
               max_workers: int = 10,
-              deadline_s: float = 25.0) -> tuple[list[NewsItem], list[SourceHealth]]:
+              deadline_s: float = 75.0) -> tuple[list[NewsItem], list[SourceHealth]]:
     """Every source in parallel, newest first. Sources that blow the deadline are
     reported as failures rather than being allowed to hold the page."""
     items: list[NewsItem] = []

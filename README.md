@@ -81,14 +81,21 @@ TWITTERAPI_IO_KEY  = "…"   # real beat-reporter tweets via twitterapi.io
 CFBD_API_KEY       = "…"   # devy board (free: collegefootballdata.com/profile)
 ```
 
-**X sources and what they cost.** Beat writers for all 32 teams are **on**, and
-handles are batched **by division** — one search per division
-(`from:a OR from:b …`) instead of one call per reporter. That covers 91 beat
-writers plus the national insiders in **9 pulls per refresh** rather than 100.
+**X sources: the free tier is one request every 5 seconds.** That single fact
+drives the whole design. Beat writers for all 32 teams are **on**, batched into
+**4 groups plus the national insiders — 5 calls total**, so a cold sweep takes
+~26 seconds and is then cached for 30 minutes. Firing them in parallel (the
+obvious thing) makes every one of them 429.
+
+Groups are bin-packed by *query length*, not by division, because X caps a
+search query near 512 characters and 91 handles do not fit in one. Team
+attribution therefore comes from the `x_handles` map (handle → team) rather than
+from group membership, so the **By Team** tab still works.
 
 The trade-off is honest: each call returns a shared pool of recent tweets, so
-after a long gap a busy division may crowd out a quieter beat. On a normal
-10-minute refresh there simply aren't enough new tweets for that to bite.
+after a long gap a busy group may crowd out a quieter beat. On a normal refresh
+there aren't enough new tweets for that to bite. A paid twitterapi.io tier lifts
+the QPS limit — raise `NewsClient.PACE_SECONDS` accordingly if you upgrade.
 
 Team attribution survives the batching via the `x_handles` map in `feeds.json`
 (handle → team), so the **By Team** tab still works on batched items.
