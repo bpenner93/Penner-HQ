@@ -773,7 +773,11 @@ with st.sidebar:
                                                   st.session_state.username)
         st.session_state.season = st.text_input("Season", st.session_state.season)
         if st.button("🔄 Refresh all data", width="stretch"):
+            # Both layers, or this button lies: clearing only Streamlit's cache
+            # re-reads the same stale bytes straight back off disk.
             st.cache_data.clear()
+            n = DiskCache(dt.CACHE_DIR).invalidate("sleeper__")
+            st.toast(f"Cleared {n} cached Sleeper responses")
             st.rerun()
 
     my_uid_hint, sleeper_leagues = discover_leagues(st.session_state.username,

@@ -47,6 +47,26 @@ class DiskCache:
     def put_text(self, key: str, text: str) -> None:
         self.path(key).write_text(text, encoding="utf-8")
 
+    # --- invalidation -------------------------------------------------------
+    def invalidate(self, prefix: str = "") -> int:
+        """Delete cached entries whose key starts with ``prefix``; returns the
+        count removed.
+
+        Needed because clearing Streamlit's in-memory cache does not touch this
+        layer — a "refresh" that only cleared the former would re-read the same
+        stale bytes off disk and look like it had done nothing.
+        """
+        removed = 0
+        safe = _safe_key(prefix) if prefix else ""
+        for p in self.root.glob("*"):
+            if p.is_file() and (not safe or p.name.startswith(safe)):
+                try:
+                    p.unlink()
+                    removed += 1
+                except OSError:
+                    pass
+        return removed
+
     # --- json ---------------------------------------------------------------
     def get_json(self, key: str) -> Any:
         return json.loads(self.get_text(key))

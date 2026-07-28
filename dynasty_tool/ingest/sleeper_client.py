@@ -66,16 +66,23 @@ class SleeperClient:
 
     # -- endpoints ----------------------------------------------------------
     def league(self, league_id: str) -> Optional[dict]:
-        return self._get(f"league/{league_id}")
+        return self._get(f"league/{league_id}",
+                         max_age_hours=config.LEAGUE_META_MAX_AGE_HOURS)
 
     def users(self, league_id: str) -> list[dict]:
-        return self._get(f"league/{league_id}/users") or []
+        return self._get(f"league/{league_id}/users",
+                         max_age_hours=config.LEAGUE_META_MAX_AGE_HOURS) or []
 
     def rosters(self, league_id: str) -> list[dict]:
-        return self._get(f"league/{league_id}/rosters") or []
+        """Current rosters. **Must** carry a TTL — this is the one endpoint that
+        changes every time anyone trades, and caching it forever is what made
+        trades invisible until the container restarted."""
+        return self._get(f"league/{league_id}/rosters",
+                         max_age_hours=config.ROSTERS_MAX_AGE_HOURS) or []
 
     def transactions(self, league_id: str, week: int) -> list[dict]:
-        return self._get(f"league/{league_id}/transactions/{week}") or []
+        return self._get(f"league/{league_id}/transactions/{week}",
+                         max_age_hours=config.TRANSACTIONS_MAX_AGE_HOURS) or []
 
     def drafts(self, league_id: str) -> list[dict]:
         return self._get(f"league/{league_id}/drafts") or []
@@ -84,14 +91,16 @@ class SleeperClient:
         return self._get(f"draft/{draft_id}/picks") or []
 
     def matchups(self, league_id: str, week: int) -> list[dict]:
-        return self._get(f"league/{league_id}/matchups/{week}") or []
+        return self._get(f"league/{league_id}/matchups/{week}",
+                         max_age_hours=config.MATCHUPS_MAX_AGE_HOURS) or []
 
     def state(self) -> dict:
         # tiny + changes daily; refresh often
         return self._get("state/nfl", max_age_hours=6) or {}
 
     def user_leagues(self, user_id: str, season: str) -> list[dict]:
-        return self._get(f"user/{user_id}/leagues/nfl/{season}") or []
+        return self._get(f"user/{user_id}/leagues/nfl/{season}",
+                         max_age_hours=config.LEAGUE_META_MAX_AGE_HOURS) or []
 
     def user(self, id_or_name: str) -> Optional[dict]:
         """Resolve a Sleeper username OR user_id to the user object (both work)."""

@@ -27,6 +27,17 @@ OUT_DIR = Path.cwd() / "out"
 PLAYERS_MAX_AGE_HOURS = 24
 VALUES_MAX_AGE_HOURS = 24
 
+# --- Sleeper endpoint freshness ---------------------------------------------
+# Not everything from Sleeper is immutable, and treating it that way is how
+# rosters silently froze: DiskCache.fresh() with max_age_hours=None means "reuse
+# forever", so a roster fetched when the container started never updated again
+# and every trade after that was invisible. Past drafts genuinely never change
+# and stay uncapped; anything a manager can alter gets a real TTL.
+ROSTERS_MAX_AGE_HOURS = 10 / 60.0      # trades must show up promptly
+MATCHUPS_MAX_AGE_HOURS = 15 / 60.0     # live scores during a game
+TRANSACTIONS_MAX_AGE_HOURS = 6         # completed weeks stop changing
+LEAGUE_META_MAX_AGE_HOURS = 6          # settings, users, league list
+
 # --- beat-reporter feed -----------------------------------------------------
 # News is the first source here that moves in minutes rather than hours: a
 # practice report that lands at 1pm is stale news by kickoff.
