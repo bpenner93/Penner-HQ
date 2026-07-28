@@ -265,3 +265,27 @@ def test_retry_after_header_is_honoured(tmp_path):
     assert _retry_after(_Resp(429, "", {"Retry-After": "3"})) == 3.0
     assert _retry_after(_Resp(429, "", {})) == 0.0
     assert _retry_after(_Resp(429, "", {"Retry-After": "soon"})) == 0.0
+
+
+# --------------------------------------------------- X behind a button ------
+def test_excluding_x_leaves_only_free_instant_sources():
+    """The page must be able to render articles without paying the ~26s X toll."""
+    from dynasty_tool.ingest.news_client import NewsClient
+    specs = load_sources()
+    without_x = [s for s in specs if s.kind not in NewsClient.PACED_KINDS]
+    assert len(without_x) == len(specs) - 5      # the 5 X groups drop out
+    assert all(s.kind in ("rss", "gnews", "bluesky") for s in without_x)
+    assert len(without_x) > 100                  # plenty still loads instantly
+
+
+def test_no_x_sources_means_no_pacing_cost(tmp_path):
+    from dynasty_tool.tests.fixtures_news import RSS_PFT
+    s = _TimedSession(_Resp(200, RSS_PFT))
+    c = NewsClient(DiskCache(tmp_path), session=s)
+    c.PACE_SECONDS = 5.2
+    specs = [x for x in load_sources()
+             if x.kind not in NewsClient.PACED_KINDS][:6]
+    import time as _t
+    t0 = _t.monotonic()
+    fetch_all(c, specs, max_workers=6)
+    assert _t.monotonic() - t0 < 3.0             # no serialisation applied

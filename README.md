@@ -92,10 +92,20 @@ search query near 512 characters and 91 handles do not fit in one. Team
 attribution therefore comes from the `x_handles` map (handle → team) rather than
 from group membership, so the **By Team** tab still works.
 
-The trade-off is honest: each call returns a shared pool of recent tweets, so
-after a long gap a busy group may crowd out a quieter beat. On a normal refresh
-there aren't enough new tweets for that to bite. A paid twitterapi.io tier lifts
-the QPS limit — raise `NewsClient.PACE_SECONDS` accordingly if you upgrade.
+Because of that 5s floor, **tweets sit behind a "🐦 Load tweets" button.**
+Articles (RSS + Google News, ~133 sources) render instantly on every visit;
+clicking spends ~26 seconds once and then serves from cache for 30 minutes.
+Nothing metered is ever fetched for a visit that only wanted headlines.
+
+There is deliberately no scheduled pre-fetch. A cron every 30 minutes would keep
+the feed permanently warm, but it bills ~240 X calls a day whether or not anyone
+opens the app — paying for tweets nobody reads. On-demand costs only what you
+actually look at.
+
+The trade-off within a sweep is honest too: each call returns a shared pool of
+recent tweets, so after a long gap a busy group may crowd out a quieter beat. A
+paid twitterapi.io tier lifts the QPS limit — lower `NewsClient.PACE_SECONDS` to
+match if you upgrade.
 
 Team attribution survives the batching via the `x_handles` map in `feeds.json`
 (handle → team), so the **By Team** tab still works on batched items.

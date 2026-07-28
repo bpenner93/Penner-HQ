@@ -280,7 +280,7 @@ def secrets_status(names: tuple) -> dict:
 
 
 @st.cache_data(ttl=dt.NEWS_MAX_AGE_MINUTES * 60, show_spinner=False)
-def load_news(_sig: str, twitter_key: str):
+def load_news(_sig: str, twitter_key: str, include_x: bool = False):
     """Every enabled source, in parallel. Returns (items as dicts, health as
     dicts) — plain data, so the cache stays pickle-safe and version-tolerant.
 
@@ -290,6 +290,13 @@ def load_news(_sig: str, twitter_key: str):
     from dynasty_tool.ingest.news_client import NewsClient, fetch_all
     from dynasty_tool.ingest.news_model import load_sources
     specs = load_sources()
+    if not include_x:
+        # X is metered at one request per 5 seconds, so a sweep costs ~26s of
+        # wall clock. RSS is free and instant. Keeping X behind an explicit
+        # click means the page is always fast and nothing is ever billed for a
+        # visit that only wanted headlines.
+        specs = [s for s in specs
+                 if s.kind not in NewsClient.PACED_KINDS]
     client = NewsClient(DiskCache(dt.CACHE_DIR), twitter_key=twitter_key)
     items, health = fetch_all(client, specs)
     return [i.to_dict() for i in items], [h.__dict__ for h in health]
@@ -872,8 +879,22 @@ if page == "Beat Feed":
     tw_key = secret("TWITTERAPI_IO_KEY")
     anthropic_key = secret("ANTHROPIC_API_KEY")
 
-    with st.spinner("Fetching the wire…"):
-        raw_items, raw_health = load_news(sig, tw_key)
+    n_x = len([s for s in specs if s.kind in ("twitter", "twitter_search")])
+    want_x = bool(st.session_state.get("_x_on"))
+    if tw_key and not want_x:
+        cx1, cx2 = st.columns([1, 3])
+        if cx1.button(f"🐦 Load tweets", type="primary"):
+            st.session_state["_x_on"] = True
+            st.rerun()
+        cx2.caption(f"Articles load instantly. Tweets are {n_x} metered calls "
+                    f"at ~5s apart (~{n_x * 5.2:.0f}s), then cached "
+                    f"{dt.NEWS_X_MAX_AGE_MINUTES} min — so they're behind a "
+                    "click rather than slowing every visit.")
+    spin = ("Fetching the wire…" if not want_x else
+            f"Fetching the wire + {n_x} X sources (~{n_x * 5.2:.0f}s, "
+            "rate-limited by twitterapi.io)…")
+    with st.spinner(spin):
+        raw_items, raw_health = load_news(sig, tw_key, want_x)
     items = [NewsItem.from_dict(d) for d in raw_items]
     # X sources are batched by division to keep the pull count at 8 instead of
     # 32, so their items arrive without a team; recover it from the handle.
