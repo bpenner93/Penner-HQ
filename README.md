@@ -51,6 +51,13 @@ separate on purpose:
   leaves the expert tab working.
 - *Draft classes* — past classes scored by what they actually produced, future
   classes priced by what the market charges for their picks.
+- *Devy board* — college prospects ranked on **early** production (usage share
+  discounted by how far into a career it happened), joined to recruiting
+  pedigree, and rolled up into "the 2028 class is carrying X elite, Y good".
+  A production screen, not a scouting report — no free consensus devy board
+  exists, so it knows nothing about traits, injuries, or scheme. Pair it with
+  the pick pricing: a class the board likes that the market hasn't priced yet
+  is when to buy picks.
 
 ### Optional keys (all features work without them)
 
@@ -60,6 +67,7 @@ locally (gitignored — never commit a key):
 ```toml
 ANTHROPIC_API_KEY  = "…"   # ✨ on-demand article summaries + roster digest
 TWITTERAPI_IO_KEY  = "…"   # real beat-reporter tweets via twitterapi.io
+CFBD_API_KEY       = "…"   # devy board (free: collegefootballdata.com/profile)
 ```
 
 Without them the feed still works — the ✨ buttons hide themselves and X sources
