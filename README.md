@@ -81,6 +81,14 @@ TWITTERAPI_IO_KEY  = "…"   # real beat-reporter tweets via twitterapi.io
 CFBD_API_KEY       = "…"   # devy board (free: collegefootballdata.com/profile)
 ```
 
+**X sources and what they cost.** Handles are batched into one search per group
+(`from:a OR from:b …`), so a group of reporters is a single billable call rather
+than one each. National insiders ship **enabled**; the 32 per-team beat groups
+ship **disabled**, because turning them all on multiplies spend — flip
+`"enabled": true` in `feeds.json` for the teams you actually follow. Rough shape
+at twitterapi.io's per-tweet pricing: insiders alone run ~$15-20/mo at a few
+refreshes an hour; all 32 team groups on is roughly 4x that.
+
 Without them the feed still works — the ✨ buttons hide themselves and X sources
 are skipped. Summaries are disk-cached, so the same article is never paid for
 twice.

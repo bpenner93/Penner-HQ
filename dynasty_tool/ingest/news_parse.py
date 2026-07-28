@@ -235,4 +235,7 @@ PARSERS = {
     "gnews": parse_rss,
     "bluesky": parse_bluesky,
     "twitter": parse_twitterapi,
+    # Advanced search returns the same tweet envelope as last_tweets, so the
+    # single tolerant parser covers both.
+    "twitter_search": parse_twitterapi,
 }

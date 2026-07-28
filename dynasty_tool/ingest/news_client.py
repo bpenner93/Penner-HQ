@@ -38,6 +38,20 @@ BSKY_BASE = "https://public.api.bsky.app/xrpc"
 TWITTERAPI_BASE = "https://api.twitterapi.io"
 
 
+def build_from_query(handles: str, exclude_replies: bool = True) -> str:
+    """``"a, @b c"`` -> ``"(from:a OR from:b OR from:c) -filter:replies"``.
+
+    Accepts comma or whitespace separation and tolerates a leading ``@`` so the
+    registry can be written the way handles are actually quoted.
+    """
+    parts = [h.strip().lstrip("@") for h in str(handles or "").replace(",", " ").split()]
+    parts = [p for p in parts if p]
+    if not parts:
+        raise RuntimeError("no handles in query")
+    q = "(" + " OR ".join(f"from:{p}" for p in parts) + ")"
+    return f"{q} -filter:replies" if exclude_replies else q
+
+
 class NewsClient:
     def __init__(self, cache: DiskCache, session: Optional[requests.Session] = None,
                  timeout: float = 8.0, max_retries: int = 2,
@@ -60,20 +74,31 @@ class NewsClient:
             return (f"{BSKY_BASE}/app.bsky.feed.getAuthorFeed",
                     {"actor": spec.ref, "limit": 40, "filter": "posts_no_replies"},
                     headers)
-        if spec.kind == "twitter":
+        if spec.kind in ("twitter", "twitter_search"):
             if not self.twitter_key:
                 raise RuntimeError("no twitterapi.io key configured")
             headers["X-API-Key"] = self.twitter_key
-            return (f"{TWITTERAPI_BASE}/twitter/user/last_tweets",
-                    {"userName": spec.ref.lstrip("@")}, headers)
+            if spec.kind == "twitter":
+                return (f"{TWITTERAPI_BASE}/twitter/user/last_tweets",
+                        {"userName": spec.ref.lstrip("@")}, headers)
+            # One search covering many handles is one billable call instead of
+            # one per reporter. With ~100 beat writers that is the difference
+            # between roughly $180/mo and $20/mo at typical refresh rates.
+            return (f"{TWITTERAPI_BASE}/twitter/tweet/advanced_search",
+                    {"query": build_from_query(spec.ref), "queryType": "Latest"},
+                    headers)
         raise RuntimeError(f"unknown source kind: {spec.kind}")
 
     def cache_key(self, spec: SourceSpec) -> str:
         """The URL is hashed into the key so that *fixing a dead URL in
         feeds.json automatically busts the cache* — otherwise you'd correct a
         source and still be served the stale empty body for the whole TTL."""
-        url, params, _ = self.request_for(spec) if spec.kind != "twitter" else (
-            f"twitter:{spec.ref}", {}, {})
+        # X sources are keyed off the spec directly: request_for raises without a
+        # key, and the cache key must stay computable either way.
+        if spec.kind in ("twitter", "twitter_search"):
+            url, params = f"{spec.kind}:{spec.ref}", {}
+        else:
+            url, params, _ = self.request_for(spec)
         basis = f"{url}|{sorted(params.items()) if params else ''}"
         h = hashlib.sha1(basis.encode("utf-8", "replace")).hexdigest()[:8]
         return f"news__{spec.id}__{h}.txt"

@@ -11,352 +11,1333 @@
     "",
     "The Beat Feed page shows a source-health panel listing every source that",
     "failed, so anything stale here is visible rather than silently missing.",
-    "Team keys are Sleeper's NFL team abbreviations."
+    "Team keys are Sleeper's NFL team abbreviations.",
+    "",
+    "X/twitter_search sources batch many handles into ONE billable call (from:a OR from:b ...). National insiders ship enabled; per-team beat writers ship DISABLED because turning all 32 on multiplies your twitterapi.io spend. Flip \"enabled\": true for the teams you care about."
   ],
-
   "national": [
-    {"id": "nat-pft", "name": "ProFootballTalk", "type": "rss",
-     "url": "https://profootballtalk.nbcsports.com/feed/"},
-    {"id": "nat-espn", "name": "ESPN NFL", "type": "rss",
-     "url": "https://www.espn.com/espn/rss/nfl/news"},
-    {"id": "nat-cbs", "name": "CBS Sports NFL", "type": "rss",
-     "url": "https://www.cbssports.com/rss/headlines/nfl/"},
-    {"id": "nat-yahoo", "name": "Yahoo Sports NFL", "type": "rss",
-     "url": "https://sports.yahoo.com/nfl/rss.xml"},
-    {"id": "nat-schefter", "name": "Adam Schefter", "outlet": "ESPN",
-     "type": "gnews", "query": "\"Adam Schefter\" NFL"},
-    {"id": "nat-rapoport", "name": "Ian Rapoport", "outlet": "NFL Network",
-     "type": "gnews", "query": "\"Ian Rapoport\" NFL"},
-    {"id": "nat-pelissero", "name": "Tom Pelissero", "outlet": "NFL Network",
-     "type": "gnews", "query": "\"Tom Pelissero\" NFL"},
-    {"id": "nat-garafolo", "name": "Mike Garafolo", "outlet": "NFL Network",
-     "type": "gnews", "query": "\"Mike Garafolo\" NFL"},
-    {"id": "nat-breer", "name": "Albert Breer", "outlet": "SI/MMQB",
-     "type": "gnews", "query": "\"Albert Breer\" NFL"},
-    {"id": "nat-fowler", "name": "Jeremy Fowler", "outlet": "ESPN",
-     "type": "gnews", "query": "\"Jeremy Fowler\" NFL"}
+    {
+      "id": "nat-pft",
+      "name": "ProFootballTalk",
+      "type": "rss",
+      "url": "https://profootballtalk.nbcsports.com/feed/"
+    },
+    {
+      "id": "nat-espn",
+      "name": "ESPN NFL",
+      "type": "rss",
+      "url": "https://www.espn.com/espn/rss/nfl/news"
+    },
+    {
+      "id": "nat-cbs",
+      "name": "CBS Sports NFL",
+      "type": "rss",
+      "url": "https://www.cbssports.com/rss/headlines/nfl/"
+    },
+    {
+      "id": "nat-yahoo",
+      "name": "Yahoo Sports NFL",
+      "type": "rss",
+      "url": "https://sports.yahoo.com/nfl/rss.xml"
+    },
+    {
+      "id": "nat-schefter",
+      "name": "Adam Schefter",
+      "outlet": "ESPN",
+      "type": "gnews",
+      "query": "\"Adam Schefter\" NFL"
+    },
+    {
+      "id": "nat-rapoport",
+      "name": "Ian Rapoport",
+      "outlet": "NFL Network",
+      "type": "gnews",
+      "query": "\"Ian Rapoport\" NFL"
+    },
+    {
+      "id": "nat-pelissero",
+      "name": "Tom Pelissero",
+      "outlet": "NFL Network",
+      "type": "gnews",
+      "query": "\"Tom Pelissero\" NFL"
+    },
+    {
+      "id": "nat-garafolo",
+      "name": "Mike Garafolo",
+      "outlet": "NFL Network",
+      "type": "gnews",
+      "query": "\"Mike Garafolo\" NFL"
+    },
+    {
+      "id": "nat-breer",
+      "name": "Albert Breer",
+      "outlet": "SI/MMQB",
+      "type": "gnews",
+      "query": "\"Albert Breer\" NFL"
+    },
+    {
+      "id": "nat-fowler",
+      "name": "Jeremy Fowler",
+      "outlet": "ESPN",
+      "type": "gnews",
+      "query": "\"Jeremy Fowler\" NFL"
+    },
+    {
+      "id": "nat-x-insiders",
+      "name": "NFL insiders (X)",
+      "type": "twitter_search",
+      "query": "AdamSchefter RapSheet TomPelissero MikeGarafolo AlbertBreer JFowlerESPN FieldYates DMRussini Schultz_Report",
+      "enabled": true
+    }
   ],
-
   "teams": {
-    "ARI": {"name": "Arizona Cardinals", "sources": [
-      {"id": "ari-blog", "name": "Revenge of the Birds", "type": "rss",
-       "url": "https://www.revengeofthebirds.com/rss/index.xml"},
-      {"id": "ari-weinfuss", "name": "Josh Weinfuss", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Josh Weinfuss\" Cardinals"},
-      {"id": "ari-haller", "name": "Doug Haller", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Doug Haller\" Cardinals"},
-      {"id": "ari-mcmanaman", "name": "Bob McManaman", "outlet": "azcentral",
-       "type": "gnews", "query": "\"Bob McManaman\" Cardinals"}
-    ]},
-    "ATL": {"name": "Atlanta Falcons", "sources": [
-      {"id": "atl-blog", "name": "The Falcoholic", "type": "rss",
-       "url": "https://www.thefalcoholic.com/rss/index.xml"},
-      {"id": "atl-kendall", "name": "Josh Kendall", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Josh Kendall\" Falcons"},
-      {"id": "atl-ledbetter", "name": "D. Orlando Ledbetter", "outlet": "AJC",
-       "type": "gnews", "query": "\"D. Orlando Ledbetter\" Falcons"},
-      {"id": "atl-waack", "name": "Terrin Waack", "outlet": "AJC",
-       "type": "gnews", "query": "\"Terrin Waack\" Falcons"}
-    ]},
-    "BAL": {"name": "Baltimore Ravens", "sources": [
-      {"id": "bal-blog", "name": "Baltimore Beatdown", "type": "rss",
-       "url": "https://www.baltimorebeatdown.com/rss/index.xml"},
-      {"id": "bal-hensley", "name": "Jamison Hensley", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Jamison Hensley\" Ravens"},
-      {"id": "bal-zrebiec", "name": "Jeff Zrebiec", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Jeff Zrebiec\" Ravens"},
-      {"id": "bal-shaffer", "name": "Jonas Shaffer", "outlet": "The Banner",
-       "type": "gnews", "query": "\"Jonas Shaffer\" Ravens"}
-    ]},
-    "BUF": {"name": "Buffalo Bills", "sources": [
-      {"id": "buf-blog", "name": "Buffalo Rumblings", "type": "rss",
-       "url": "https://www.buffalorumblings.com/rss/index.xml"},
-      {"id": "buf-buscaglia", "name": "Joe Buscaglia", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Joe Buscaglia\" Bills"},
-      {"id": "buf-capaccio", "name": "Sal Capaccio", "outlet": "WGR 550",
-       "type": "gnews", "query": "\"Sal Capaccio\" Bills"},
-      {"id": "buf-getzenberg", "name": "Alaina Getzenberg", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Alaina Getzenberg\" Bills"}
-    ]},
-    "CAR": {"name": "Carolina Panthers", "sources": [
-      {"id": "car-blog", "name": "Cat Scratch Reader", "type": "rss",
-       "url": "https://www.catscratchreader.com/rss/index.xml"},
-      {"id": "car-newton", "name": "David Newton", "outlet": "ESPN",
-       "type": "gnews", "query": "\"David Newton\" Panthers"},
-      {"id": "car-person", "name": "Joseph Person", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Joseph Person\" Panthers"},
-      {"id": "car-kaye", "name": "Mike Kaye", "outlet": "Charlotte Observer",
-       "type": "gnews", "query": "\"Mike Kaye\" Panthers"}
-    ]},
-    "CHI": {"name": "Chicago Bears", "sources": [
-      {"id": "chi-blog", "name": "Windy City Gridiron", "type": "rss",
-       "url": "https://www.windycitygridiron.com/rss/index.xml"},
-      {"id": "chi-cronin", "name": "Courtney Cronin", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Courtney Cronin\" Bears"},
-      {"id": "chi-jahns", "name": "Adam Jahns", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Adam Jahns\" Bears"},
-      {"id": "chi-biggs", "name": "Brad Biggs", "outlet": "Chicago Tribune",
-       "type": "gnews", "query": "\"Brad Biggs\" Bears"}
-    ]},
-    "CIN": {"name": "Cincinnati Bengals", "sources": [
-      {"id": "cin-blog", "name": "Cincy Jungle", "type": "rss",
-       "url": "https://www.cincyjungle.com/rss/index.xml"},
-      {"id": "cin-baby", "name": "Ben Baby", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Ben Baby\" Bengals"},
-      {"id": "cin-dehner", "name": "Paul Dehner Jr.", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Paul Dehner\" Bengals"},
-      {"id": "cin-conway", "name": "Kelsey Conway", "outlet": "Cincinnati Enquirer",
-       "type": "gnews", "query": "\"Kelsey Conway\" Bengals"}
-    ]},
-    "CLE": {"name": "Cleveland Browns", "sources": [
-      {"id": "cle-blog", "name": "Dawgs By Nature", "type": "rss",
-       "url": "https://www.dawgsbynature.com/rss/index.xml"},
-      {"id": "cle-cabot", "name": "Mary Kay Cabot", "outlet": "cleveland.com",
-       "type": "gnews", "query": "\"Mary Kay Cabot\" Browns"},
-      {"id": "cle-jackson", "name": "Zac Jackson", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Zac Jackson\" Browns"},
-      {"id": "cle-oyefusi", "name": "Daniel Oyefusi", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Daniel Oyefusi\" Browns"}
-    ]},
-    "DAL": {"name": "Dallas Cowboys", "sources": [
-      {"id": "dal-blog", "name": "Blogging The Boys", "type": "rss",
-       "url": "https://www.bloggingtheboys.com/rss/index.xml"},
-      {"id": "dal-archer", "name": "Todd Archer", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Todd Archer\" Cowboys"},
-      {"id": "dal-machota", "name": "Jon Machota", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Jon Machota\" Cowboys"},
-      {"id": "dal-watkins", "name": "Calvin Watkins", "outlet": "Dallas Morning News",
-       "type": "gnews", "query": "\"Calvin Watkins\" Cowboys"}
-    ]},
-    "DEN": {"name": "Denver Broncos", "sources": [
-      {"id": "den-blog", "name": "Mile High Report", "type": "rss",
-       "url": "https://www.milehighreport.com/rss/index.xml"},
-      {"id": "den-legwold", "name": "Jeff Legwold", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Jeff Legwold\" Broncos"},
-      {"id": "den-kosmider", "name": "Nick Kosmider", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Nick Kosmider\" Broncos"},
-      {"id": "den-gabriel", "name": "Parker Gabriel", "outlet": "Denver Post",
-       "type": "gnews", "query": "\"Parker Gabriel\" Broncos"}
-    ]},
-    "DET": {"name": "Detroit Lions", "sources": [
-      {"id": "det-blog", "name": "Pride Of Detroit", "type": "rss",
-       "url": "https://www.prideofdetroit.com/rss/index.xml"},
-      {"id": "det-birkett", "name": "Dave Birkett", "outlet": "Detroit Free Press",
-       "type": "gnews", "query": "\"Dave Birkett\" Lions"},
-      {"id": "det-pouncy", "name": "Colton Pouncy", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Colton Pouncy\" Lions"},
-      {"id": "det-rothstein", "name": "Michael Rothstein", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Michael Rothstein\" Lions"}
-    ]},
-    "GB": {"name": "Green Bay Packers", "sources": [
-      {"id": "gb-blog", "name": "Acme Packing Company", "type": "rss",
-       "url": "https://www.acmepackingcompany.com/rss/index.xml"},
-      {"id": "gb-demovsky", "name": "Rob Demovsky", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Rob Demovsky\" Packers"},
-      {"id": "gb-schneidman", "name": "Matt Schneidman", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Matt Schneidman\" Packers"},
-      {"id": "gb-wood", "name": "Ryan Wood", "outlet": "Green Bay Press-Gazette",
-       "type": "gnews", "query": "\"Ryan Wood\" Packers"}
-    ]},
-    "HOU": {"name": "Houston Texans", "sources": [
-      {"id": "hou-blog", "name": "Battle Red Blog", "type": "rss",
-       "url": "https://www.battleredblog.com/rss/index.xml"},
-      {"id": "hou-bienaime", "name": "DJ Bien-Aime", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Bien-Aime\" Texans"},
-      {"id": "hou-wilson", "name": "Aaron Wilson", "outlet": "KPRC",
-       "type": "gnews", "query": "\"Aaron Wilson\" Texans"},
-      {"id": "hou-alexander", "name": "Jonathan Alexander", "outlet": "Houston Chronicle",
-       "type": "gnews", "query": "\"Jonathan Alexander\" Texans"}
-    ]},
-    "IND": {"name": "Indianapolis Colts", "sources": [
-      {"id": "ind-blog", "name": "Stampede Blue", "type": "rss",
-       "url": "https://www.stampedeblue.com/rss/index.xml"},
-      {"id": "ind-holder", "name": "Stephen Holder", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Stephen Holder\" Colts"},
-      {"id": "ind-boyd", "name": "James Boyd", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"James Boyd\" Colts"},
-      {"id": "ind-erickson", "name": "Joel Erickson", "outlet": "IndyStar",
-       "type": "gnews", "query": "\"Joel Erickson\" Colts"}
-    ]},
-    "JAX": {"name": "Jacksonville Jaguars", "sources": [
-      {"id": "jax-blog", "name": "Big Cat Country", "type": "rss",
-       "url": "https://www.bigcatcountry.com/rss/index.xml"},
-      {"id": "jax-dirocco", "name": "Michael DiRocco", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Michael DiRocco\" Jaguars"},
-      {"id": "jax-harvey", "name": "Demetrius Harvey", "outlet": "Florida Times-Union",
-       "type": "gnews", "query": "\"Demetrius Harvey\" Jaguars"},
-      {"id": "jax-shipley", "name": "John Shipley", "outlet": "Jaguars Report",
-       "type": "gnews", "query": "\"John Shipley\" Jaguars"}
-    ]},
-    "KC": {"name": "Kansas City Chiefs", "sources": [
-      {"id": "kc-blog", "name": "Arrowhead Pride", "type": "rss",
-       "url": "https://www.arrowheadpride.com/rss/index.xml"},
-      {"id": "kc-teicher", "name": "Adam Teicher", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Adam Teicher\" Chiefs"},
-      {"id": "kc-taylor", "name": "Nate Taylor", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Nate Taylor\" Chiefs"},
-      {"id": "kc-sweeney", "name": "Pete Sweeney", "outlet": "Arrowhead Pride",
-       "type": "gnews", "query": "\"Pete Sweeney\" Chiefs"}
-    ]},
-    "LAC": {"name": "Los Angeles Chargers", "sources": [
-      {"id": "lac-blog", "name": "Bolts From The Blue", "type": "rss",
-       "url": "https://www.boltsfromtheblue.com/rss/index.xml"},
-      {"id": "lac-popper", "name": "Daniel Popper", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Daniel Popper\" Chargers"},
-      {"id": "lac-rhim", "name": "Kris Rhim", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Kris Rhim\" Chargers"},
-      {"id": "lac-miller", "name": "Jeff Miller", "outlet": "LA Times",
-       "type": "gnews", "query": "\"Jeff Miller\" Chargers"}
-    ]},
-    "LAR": {"name": "Los Angeles Rams", "sources": [
-      {"id": "lar-blog", "name": "Turf Show Times", "type": "rss",
-       "url": "https://www.turfshowtimes.com/rss/index.xml"},
-      {"id": "lar-rodrigue", "name": "Jourdan Rodrigue", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Jourdan Rodrigue\" Rams"},
-      {"id": "lar-barshop", "name": "Sarah Barshop", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Sarah Barshop\" Rams"},
-      {"id": "lar-klein", "name": "Gary Klein", "outlet": "LA Times",
-       "type": "gnews", "query": "\"Gary Klein\" Rams"}
-    ]},
-    "LV": {"name": "Las Vegas Raiders", "sources": [
-      {"id": "lv-blog", "name": "Silver And Black Pride", "type": "rss",
-       "url": "https://www.silverandblackpride.com/rss/index.xml"},
-      {"id": "lv-reed", "name": "Tashan Reed", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Tashan Reed\" Raiders"},
-      {"id": "lv-mcfadden", "name": "Ryan McFadden", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Ryan McFadden\" Raiders"},
-      {"id": "lv-bonsignore", "name": "Vincent Bonsignore", "outlet": "Review-Journal",
-       "type": "gnews", "query": "\"Vincent Bonsignore\" Raiders"}
-    ]},
-    "MIA": {"name": "Miami Dolphins", "sources": [
-      {"id": "mia-blog", "name": "The Phinsider", "type": "rss",
-       "url": "https://www.thephinsider.com/rss/index.xml"},
-      {"id": "mia-jackson", "name": "Barry Jackson", "outlet": "Miami Herald",
-       "type": "gnews", "query": "\"Barry Jackson\" Dolphins"},
-      {"id": "mia-louisjacques", "name": "Marcel Louis-Jacques", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Louis-Jacques\" Dolphins"},
-      {"id": "mia-furones", "name": "David Furones", "outlet": "Sun Sentinel",
-       "type": "gnews", "query": "\"David Furones\" Dolphins"}
-    ]},
-    "MIN": {"name": "Minnesota Vikings", "sources": [
-      {"id": "min-blog", "name": "Daily Norseman", "type": "rss",
-       "url": "https://www.dailynorseman.com/rss/index.xml"},
-      {"id": "min-lewis", "name": "Alec Lewis", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Alec Lewis\" Vikings"},
-      {"id": "min-seifert", "name": "Kevin Seifert", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Kevin Seifert\" Vikings"},
-      {"id": "min-goessling", "name": "Ben Goessling", "outlet": "Star Tribune",
-       "type": "gnews", "query": "\"Ben Goessling\" Vikings"}
-    ]},
-    "NE": {"name": "New England Patriots", "sources": [
-      {"id": "ne-blog", "name": "Pats Pulpit", "type": "rss",
-       "url": "https://www.patspulpit.com/rss/index.xml"},
-      {"id": "ne-reiss", "name": "Mike Reiss", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Mike Reiss\" Patriots"},
-      {"id": "ne-kyed", "name": "Doug Kyed", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Doug Kyed\" Patriots"},
-      {"id": "ne-guregian", "name": "Karen Guregian", "outlet": "MassLive",
-       "type": "gnews", "query": "\"Karen Guregian\" Patriots"}
-    ]},
-    "NO": {"name": "New Orleans Saints", "sources": [
-      {"id": "no-blog", "name": "Canal Street Chronicles", "type": "rss",
-       "url": "https://www.canalstreetchronicles.com/rss/index.xml"},
-      {"id": "no-terrell", "name": "Katherine Terrell", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Katherine Terrell\" Saints"},
-      {"id": "no-holder", "name": "Larry Holder", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Larry Holder\" Saints"},
-      {"id": "no-underhill", "name": "Jeff Duncan", "outlet": "NOLA.com",
-       "type": "gnews", "query": "\"Jeff Duncan\" Saints"}
-    ]},
-    "NYG": {"name": "New York Giants", "sources": [
-      {"id": "nyg-blog", "name": "Big Blue View", "type": "rss",
-       "url": "https://www.bigblueview.com/rss/index.xml"},
-      {"id": "nyg-raanan", "name": "Jordan Raanan", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Jordan Raanan\" Giants"},
-      {"id": "nyg-duggan", "name": "Dan Duggan", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Dan Duggan\" Giants"},
-      {"id": "nyg-schwartz", "name": "Paul Schwartz", "outlet": "NY Post",
-       "type": "gnews", "query": "\"Paul Schwartz\" Giants"}
-    ]},
-    "NYJ": {"name": "New York Jets", "sources": [
-      {"id": "nyj-blog", "name": "Gang Green Nation", "type": "rss",
-       "url": "https://www.ganggreennation.com/rss/index.xml"},
-      {"id": "nyj-cimini", "name": "Rich Cimini", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Rich Cimini\" Jets"},
-      {"id": "nyj-costello", "name": "Brian Costello", "outlet": "NY Post",
-       "type": "gnews", "query": "\"Brian Costello\" Jets"},
-      {"id": "nyj-rosenblatt", "name": "Zack Rosenblatt", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Zack Rosenblatt\" Jets"}
-    ]},
-    "PHI": {"name": "Philadelphia Eagles", "sources": [
-      {"id": "phi-blog", "name": "Bleeding Green Nation", "type": "rss",
-       "url": "https://www.bleedinggreennation.com/rss/index.xml"},
-      {"id": "phi-mcmanus", "name": "Tim McManus", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Tim McManus\" Eagles"},
-      {"id": "phi-mclane", "name": "Jeff McLane", "outlet": "Philadelphia Inquirer",
-       "type": "gnews", "query": "\"Jeff McLane\" Eagles"},
-      {"id": "phi-kempski", "name": "Jimmy Kempski", "outlet": "PhillyVoice",
-       "type": "gnews", "query": "\"Jimmy Kempski\" Eagles"}
-    ]},
-    "PIT": {"name": "Pittsburgh Steelers", "sources": [
-      {"id": "pit-blog", "name": "Behind The Steel Curtain", "type": "rss",
-       "url": "https://www.behindthesteelcurtain.com/rss/index.xml"},
-      {"id": "pit-pryor", "name": "Brooke Pryor", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Brooke Pryor\" Steelers"},
-      {"id": "pit-kaboly", "name": "Mark Kaboly", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Mark Kaboly\" Steelers"},
-      {"id": "pit-dulac", "name": "Gerry Dulac", "outlet": "Post-Gazette",
-       "type": "gnews", "query": "\"Gerry Dulac\" Steelers"}
-    ]},
-    "SEA": {"name": "Seattle Seahawks", "sources": [
-      {"id": "sea-blog", "name": "Field Gulls", "type": "rss",
-       "url": "https://www.fieldgulls.com/rss/index.xml"},
-      {"id": "sea-henderson", "name": "Brady Henderson", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Brady Henderson\" Seahawks"},
-      {"id": "sea-dugar", "name": "Michael-Shawn Dugar", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Dugar\" Seahawks"},
-      {"id": "sea-bell", "name": "Gregg Bell", "outlet": "News Tribune",
-       "type": "gnews", "query": "\"Gregg Bell\" Seahawks"}
-    ]},
-    "SF": {"name": "San Francisco 49ers", "sources": [
-      {"id": "sf-blog", "name": "Niners Nation", "type": "rss",
-       "url": "https://www.ninersnation.com/rss/index.xml"},
-      {"id": "sf-wagoner", "name": "Nick Wagoner", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Nick Wagoner\" 49ers"},
-      {"id": "sf-barrows", "name": "Matt Barrows", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Matt Barrows\" 49ers"},
-      {"id": "sf-inman", "name": "Cam Inman", "outlet": "Mercury News",
-       "type": "gnews", "query": "\"Cam Inman\" 49ers"}
-    ]},
-    "TB": {"name": "Tampa Bay Buccaneers", "sources": [
-      {"id": "tb-blog", "name": "Bucs Nation", "type": "rss",
-       "url": "https://www.bucsnation.com/rss/index.xml"},
-      {"id": "tb-laine", "name": "Jenna Laine", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Jenna Laine\" Buccaneers"},
-      {"id": "tb-auman", "name": "Greg Auman", "outlet": "Fox Sports",
-       "type": "gnews", "query": "\"Greg Auman\" Buccaneers"},
-      {"id": "tb-stroud", "name": "Rick Stroud", "outlet": "Tampa Bay Times",
-       "type": "gnews", "query": "\"Rick Stroud\" Buccaneers"}
-    ]},
-    "TEN": {"name": "Tennessee Titans", "sources": [
-      {"id": "ten-blog", "name": "Music City Miracles", "type": "rss",
-       "url": "https://www.musiccitymiracles.com/rss/index.xml"},
-      {"id": "ten-davenport", "name": "Turron Davenport", "outlet": "ESPN",
-       "type": "gnews", "query": "\"Turron Davenport\" Titans"},
-      {"id": "ten-rexrode", "name": "Joe Rexrode", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Joe Rexrode\" Titans"},
-      {"id": "ten-suss", "name": "Nick Suss", "outlet": "The Tennessean",
-       "type": "gnews", "query": "\"Nick Suss\" Titans"}
-    ]},
-    "WAS": {"name": "Washington Commanders", "sources": [
-      {"id": "was-blog", "name": "Hogs Haven", "type": "rss",
-       "url": "https://www.hogshaven.com/rss/index.xml"},
-      {"id": "was-keim", "name": "John Keim", "outlet": "ESPN",
-       "type": "gnews", "query": "\"John Keim\" Commanders"},
-      {"id": "was-standig", "name": "Ben Standig", "outlet": "The Athletic",
-       "type": "gnews", "query": "\"Ben Standig\" Commanders"},
-      {"id": "was-jhabvala", "name": "Nicki Jhabvala", "outlet": "Washington Post",
-       "type": "gnews", "query": "\"Nicki Jhabvala\" Commanders"}
-    ]}
+    "ARI": {
+      "name": "Arizona Cardinals",
+      "sources": [
+        {
+          "id": "ari-blog",
+          "name": "Revenge of the Birds",
+          "type": "rss",
+          "url": "https://www.revengeofthebirds.com/rss/index.xml"
+        },
+        {
+          "id": "ari-weinfuss",
+          "name": "Josh Weinfuss",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Josh Weinfuss\" Cardinals"
+        },
+        {
+          "id": "ari-haller",
+          "name": "Doug Haller",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Doug Haller\" Cardinals"
+        },
+        {
+          "id": "ari-mcmanaman",
+          "name": "Bob McManaman",
+          "outlet": "azcentral",
+          "type": "gnews",
+          "query": "\"Bob McManaman\" Cardinals"
+        },
+        {
+          "id": "ari-x",
+          "name": "ARI beat (X)",
+          "type": "twitter_search",
+          "query": "joshweinfuss DougHaller azbobbymac",
+          "enabled": false
+        }
+      ]
+    },
+    "ATL": {
+      "name": "Atlanta Falcons",
+      "sources": [
+        {
+          "id": "atl-blog",
+          "name": "The Falcoholic",
+          "type": "rss",
+          "url": "https://www.thefalcoholic.com/rss/index.xml"
+        },
+        {
+          "id": "atl-kendall",
+          "name": "Josh Kendall",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Josh Kendall\" Falcons"
+        },
+        {
+          "id": "atl-ledbetter",
+          "name": "D. Orlando Ledbetter",
+          "outlet": "AJC",
+          "type": "gnews",
+          "query": "\"D. Orlando Ledbetter\" Falcons"
+        },
+        {
+          "id": "atl-waack",
+          "name": "Terrin Waack",
+          "outlet": "AJC",
+          "type": "gnews",
+          "query": "\"Terrin Waack\" Falcons"
+        },
+        {
+          "id": "atl-x",
+          "name": "ATL beat (X)",
+          "type": "twitter_search",
+          "query": "DOrlandoAJC TerrinWaack",
+          "enabled": false
+        }
+      ]
+    },
+    "BAL": {
+      "name": "Baltimore Ravens",
+      "sources": [
+        {
+          "id": "bal-blog",
+          "name": "Baltimore Beatdown",
+          "type": "rss",
+          "url": "https://www.baltimorebeatdown.com/rss/index.xml"
+        },
+        {
+          "id": "bal-hensley",
+          "name": "Jamison Hensley",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Jamison Hensley\" Ravens"
+        },
+        {
+          "id": "bal-zrebiec",
+          "name": "Jeff Zrebiec",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Jeff Zrebiec\" Ravens"
+        },
+        {
+          "id": "bal-shaffer",
+          "name": "Jonas Shaffer",
+          "outlet": "The Banner",
+          "type": "gnews",
+          "query": "\"Jonas Shaffer\" Ravens"
+        },
+        {
+          "id": "bal-x",
+          "name": "BAL beat (X)",
+          "type": "twitter_search",
+          "query": "jamisonhensley jeffzrebiec jonas_shaffer",
+          "enabled": false
+        }
+      ]
+    },
+    "BUF": {
+      "name": "Buffalo Bills",
+      "sources": [
+        {
+          "id": "buf-blog",
+          "name": "Buffalo Rumblings",
+          "type": "rss",
+          "url": "https://www.buffalorumblings.com/rss/index.xml"
+        },
+        {
+          "id": "buf-buscaglia",
+          "name": "Joe Buscaglia",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Joe Buscaglia\" Bills"
+        },
+        {
+          "id": "buf-capaccio",
+          "name": "Sal Capaccio",
+          "outlet": "WGR 550",
+          "type": "gnews",
+          "query": "\"Sal Capaccio\" Bills"
+        },
+        {
+          "id": "buf-getzenberg",
+          "name": "Alaina Getzenberg",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Alaina Getzenberg\" Bills"
+        },
+        {
+          "id": "buf-x",
+          "name": "BUF beat (X)",
+          "type": "twitter_search",
+          "query": "JoeBuscaglia SalSports agetzenberg",
+          "enabled": false
+        }
+      ]
+    },
+    "CAR": {
+      "name": "Carolina Panthers",
+      "sources": [
+        {
+          "id": "car-blog",
+          "name": "Cat Scratch Reader",
+          "type": "rss",
+          "url": "https://www.catscratchreader.com/rss/index.xml"
+        },
+        {
+          "id": "car-newton",
+          "name": "David Newton",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"David Newton\" Panthers"
+        },
+        {
+          "id": "car-person",
+          "name": "Joseph Person",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Joseph Person\" Panthers"
+        },
+        {
+          "id": "car-kaye",
+          "name": "Mike Kaye",
+          "outlet": "Charlotte Observer",
+          "type": "gnews",
+          "query": "\"Mike Kaye\" Panthers"
+        },
+        {
+          "id": "car-x",
+          "name": "CAR beat (X)",
+          "type": "twitter_search",
+          "query": "DNewtonespn josephperson Mike_E_Kaye",
+          "enabled": false
+        }
+      ]
+    },
+    "CHI": {
+      "name": "Chicago Bears",
+      "sources": [
+        {
+          "id": "chi-blog",
+          "name": "Windy City Gridiron",
+          "type": "rss",
+          "url": "https://www.windycitygridiron.com/rss/index.xml"
+        },
+        {
+          "id": "chi-cronin",
+          "name": "Courtney Cronin",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Courtney Cronin\" Bears"
+        },
+        {
+          "id": "chi-jahns",
+          "name": "Adam Jahns",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Adam Jahns\" Bears"
+        },
+        {
+          "id": "chi-biggs",
+          "name": "Brad Biggs",
+          "outlet": "Chicago Tribune",
+          "type": "gnews",
+          "query": "\"Brad Biggs\" Bears"
+        },
+        {
+          "id": "chi-x",
+          "name": "CHI beat (X)",
+          "type": "twitter_search",
+          "query": "CourtneyRCronin adamjahns BradBiggs",
+          "enabled": false
+        }
+      ]
+    },
+    "CIN": {
+      "name": "Cincinnati Bengals",
+      "sources": [
+        {
+          "id": "cin-blog",
+          "name": "Cincy Jungle",
+          "type": "rss",
+          "url": "https://www.cincyjungle.com/rss/index.xml"
+        },
+        {
+          "id": "cin-baby",
+          "name": "Ben Baby",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Ben Baby\" Bengals"
+        },
+        {
+          "id": "cin-dehner",
+          "name": "Paul Dehner Jr.",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Paul Dehner\" Bengals"
+        },
+        {
+          "id": "cin-conway",
+          "name": "Kelsey Conway",
+          "outlet": "Cincinnati Enquirer",
+          "type": "gnews",
+          "query": "\"Kelsey Conway\" Bengals"
+        },
+        {
+          "id": "cin-x",
+          "name": "CIN beat (X)",
+          "type": "twitter_search",
+          "query": "Ben_Baby pauldehnerjr KelseyLConway",
+          "enabled": false
+        }
+      ]
+    },
+    "CLE": {
+      "name": "Cleveland Browns",
+      "sources": [
+        {
+          "id": "cle-blog",
+          "name": "Dawgs By Nature",
+          "type": "rss",
+          "url": "https://www.dawgsbynature.com/rss/index.xml"
+        },
+        {
+          "id": "cle-cabot",
+          "name": "Mary Kay Cabot",
+          "outlet": "cleveland.com",
+          "type": "gnews",
+          "query": "\"Mary Kay Cabot\" Browns"
+        },
+        {
+          "id": "cle-jackson",
+          "name": "Zac Jackson",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Zac Jackson\" Browns"
+        },
+        {
+          "id": "cle-oyefusi",
+          "name": "Daniel Oyefusi",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Daniel Oyefusi\" Browns"
+        },
+        {
+          "id": "cle-x",
+          "name": "CLE beat (X)",
+          "type": "twitter_search",
+          "query": "MaryKayCabot AkronJackson DanielOyefusi",
+          "enabled": false
+        }
+      ]
+    },
+    "DAL": {
+      "name": "Dallas Cowboys",
+      "sources": [
+        {
+          "id": "dal-blog",
+          "name": "Blogging The Boys",
+          "type": "rss",
+          "url": "https://www.bloggingtheboys.com/rss/index.xml"
+        },
+        {
+          "id": "dal-archer",
+          "name": "Todd Archer",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Todd Archer\" Cowboys"
+        },
+        {
+          "id": "dal-machota",
+          "name": "Jon Machota",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Jon Machota\" Cowboys"
+        },
+        {
+          "id": "dal-watkins",
+          "name": "Calvin Watkins",
+          "outlet": "Dallas Morning News",
+          "type": "gnews",
+          "query": "\"Calvin Watkins\" Cowboys"
+        },
+        {
+          "id": "dal-x",
+          "name": "DAL beat (X)",
+          "type": "twitter_search",
+          "query": "toddarcher jonmachota calvinwatkins",
+          "enabled": false
+        }
+      ]
+    },
+    "DEN": {
+      "name": "Denver Broncos",
+      "sources": [
+        {
+          "id": "den-blog",
+          "name": "Mile High Report",
+          "type": "rss",
+          "url": "https://www.milehighreport.com/rss/index.xml"
+        },
+        {
+          "id": "den-legwold",
+          "name": "Jeff Legwold",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Jeff Legwold\" Broncos"
+        },
+        {
+          "id": "den-kosmider",
+          "name": "Nick Kosmider",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Nick Kosmider\" Broncos"
+        },
+        {
+          "id": "den-gabriel",
+          "name": "Parker Gabriel",
+          "outlet": "Denver Post",
+          "type": "gnews",
+          "query": "\"Parker Gabriel\" Broncos"
+        },
+        {
+          "id": "den-x",
+          "name": "DEN beat (X)",
+          "type": "twitter_search",
+          "query": "Jeff_Legwold NickKosmider ParkerJGabriel",
+          "enabled": false
+        }
+      ]
+    },
+    "DET": {
+      "name": "Detroit Lions",
+      "sources": [
+        {
+          "id": "det-blog",
+          "name": "Pride Of Detroit",
+          "type": "rss",
+          "url": "https://www.prideofdetroit.com/rss/index.xml"
+        },
+        {
+          "id": "det-birkett",
+          "name": "Dave Birkett",
+          "outlet": "Detroit Free Press",
+          "type": "gnews",
+          "query": "\"Dave Birkett\" Lions"
+        },
+        {
+          "id": "det-pouncy",
+          "name": "Colton Pouncy",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Colton Pouncy\" Lions"
+        },
+        {
+          "id": "det-rothstein",
+          "name": "Michael Rothstein",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Michael Rothstein\" Lions"
+        },
+        {
+          "id": "det-x",
+          "name": "DET beat (X)",
+          "type": "twitter_search",
+          "query": "davebirkett colton_pouncy E_Woodyard",
+          "enabled": false
+        }
+      ]
+    },
+    "GB": {
+      "name": "Green Bay Packers",
+      "sources": [
+        {
+          "id": "gb-blog",
+          "name": "Acme Packing Company",
+          "type": "rss",
+          "url": "https://www.acmepackingcompany.com/rss/index.xml"
+        },
+        {
+          "id": "gb-demovsky",
+          "name": "Rob Demovsky",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Rob Demovsky\" Packers"
+        },
+        {
+          "id": "gb-schneidman",
+          "name": "Matt Schneidman",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Matt Schneidman\" Packers"
+        },
+        {
+          "id": "gb-wood",
+          "name": "Ryan Wood",
+          "outlet": "Green Bay Press-Gazette",
+          "type": "gnews",
+          "query": "\"Ryan Wood\" Packers"
+        },
+        {
+          "id": "gb-x",
+          "name": "GB beat (X)",
+          "type": "twitter_search",
+          "query": "RobDemovsky mattschneidman ByRyanWood",
+          "enabled": false
+        }
+      ]
+    },
+    "HOU": {
+      "name": "Houston Texans",
+      "sources": [
+        {
+          "id": "hou-blog",
+          "name": "Battle Red Blog",
+          "type": "rss",
+          "url": "https://www.battleredblog.com/rss/index.xml"
+        },
+        {
+          "id": "hou-bienaime",
+          "name": "DJ Bien-Aime",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Bien-Aime\" Texans"
+        },
+        {
+          "id": "hou-wilson",
+          "name": "Aaron Wilson",
+          "outlet": "KPRC",
+          "type": "gnews",
+          "query": "\"Aaron Wilson\" Texans"
+        },
+        {
+          "id": "hou-alexander",
+          "name": "Jonathan Alexander",
+          "outlet": "Houston Chronicle",
+          "type": "gnews",
+          "query": "\"Jonathan Alexander\" Texans"
+        },
+        {
+          "id": "hou-x",
+          "name": "HOU beat (X)",
+          "type": "twitter_search",
+          "query": "AaronWilson_NFL DJBienAime",
+          "enabled": false
+        }
+      ]
+    },
+    "IND": {
+      "name": "Indianapolis Colts",
+      "sources": [
+        {
+          "id": "ind-blog",
+          "name": "Stampede Blue",
+          "type": "rss",
+          "url": "https://www.stampedeblue.com/rss/index.xml"
+        },
+        {
+          "id": "ind-holder",
+          "name": "Stephen Holder",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Stephen Holder\" Colts"
+        },
+        {
+          "id": "ind-boyd",
+          "name": "James Boyd",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"James Boyd\" Colts"
+        },
+        {
+          "id": "ind-erickson",
+          "name": "Joel Erickson",
+          "outlet": "IndyStar",
+          "type": "gnews",
+          "query": "\"Joel Erickson\" Colts"
+        },
+        {
+          "id": "ind-x",
+          "name": "IND beat (X)",
+          "type": "twitter_search",
+          "query": "HolderStephen RomeovilleKid JoelAErickson",
+          "enabled": false
+        }
+      ]
+    },
+    "JAX": {
+      "name": "Jacksonville Jaguars",
+      "sources": [
+        {
+          "id": "jax-blog",
+          "name": "Big Cat Country",
+          "type": "rss",
+          "url": "https://www.bigcatcountry.com/rss/index.xml"
+        },
+        {
+          "id": "jax-dirocco",
+          "name": "Michael DiRocco",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Michael DiRocco\" Jaguars"
+        },
+        {
+          "id": "jax-harvey",
+          "name": "Demetrius Harvey",
+          "outlet": "Florida Times-Union",
+          "type": "gnews",
+          "query": "\"Demetrius Harvey\" Jaguars"
+        },
+        {
+          "id": "jax-shipley",
+          "name": "John Shipley",
+          "outlet": "Jaguars Report",
+          "type": "gnews",
+          "query": "\"John Shipley\" Jaguars"
+        },
+        {
+          "id": "jax-x",
+          "name": "JAX beat (X)",
+          "type": "twitter_search",
+          "query": "ESPNdirocco Demetrius82",
+          "enabled": false
+        }
+      ]
+    },
+    "KC": {
+      "name": "Kansas City Chiefs",
+      "sources": [
+        {
+          "id": "kc-blog",
+          "name": "Arrowhead Pride",
+          "type": "rss",
+          "url": "https://www.arrowheadpride.com/rss/index.xml"
+        },
+        {
+          "id": "kc-teicher",
+          "name": "Adam Teicher",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Adam Teicher\" Chiefs"
+        },
+        {
+          "id": "kc-taylor",
+          "name": "Nate Taylor",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Nate Taylor\" Chiefs"
+        },
+        {
+          "id": "kc-sweeney",
+          "name": "Pete Sweeney",
+          "outlet": "Arrowhead Pride",
+          "type": "gnews",
+          "query": "\"Pete Sweeney\" Chiefs"
+        },
+        {
+          "id": "kc-x",
+          "name": "KC beat (X)",
+          "type": "twitter_search",
+          "query": "adamteicher ByNateTaylor pgsweeney",
+          "enabled": false
+        }
+      ]
+    },
+    "LAC": {
+      "name": "Los Angeles Chargers",
+      "sources": [
+        {
+          "id": "lac-blog",
+          "name": "Bolts From The Blue",
+          "type": "rss",
+          "url": "https://www.boltsfromtheblue.com/rss/index.xml"
+        },
+        {
+          "id": "lac-popper",
+          "name": "Daniel Popper",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Daniel Popper\" Chargers"
+        },
+        {
+          "id": "lac-rhim",
+          "name": "Kris Rhim",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Kris Rhim\" Chargers"
+        },
+        {
+          "id": "lac-miller",
+          "name": "Jeff Miller",
+          "outlet": "LA Times",
+          "type": "gnews",
+          "query": "\"Jeff Miller\" Chargers"
+        },
+        {
+          "id": "lac-x",
+          "name": "LAC beat (X)",
+          "type": "twitter_search",
+          "query": "danielpopper KrisRhim",
+          "enabled": false
+        }
+      ]
+    },
+    "LAR": {
+      "name": "Los Angeles Rams",
+      "sources": [
+        {
+          "id": "lar-blog",
+          "name": "Turf Show Times",
+          "type": "rss",
+          "url": "https://www.turfshowtimes.com/rss/index.xml"
+        },
+        {
+          "id": "lar-rodrigue",
+          "name": "Jourdan Rodrigue",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Jourdan Rodrigue\" Rams"
+        },
+        {
+          "id": "lar-barshop",
+          "name": "Sarah Barshop",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Sarah Barshop\" Rams"
+        },
+        {
+          "id": "lar-klein",
+          "name": "Gary Klein",
+          "outlet": "LA Times",
+          "type": "gnews",
+          "query": "\"Gary Klein\" Rams"
+        },
+        {
+          "id": "lar-x",
+          "name": "LAR beat (X)",
+          "type": "twitter_search",
+          "query": "JourdanRodrigue sarahbarshop LATimesklein",
+          "enabled": false
+        }
+      ]
+    },
+    "LV": {
+      "name": "Las Vegas Raiders",
+      "sources": [
+        {
+          "id": "lv-blog",
+          "name": "Silver And Black Pride",
+          "type": "rss",
+          "url": "https://www.silverandblackpride.com/rss/index.xml"
+        },
+        {
+          "id": "lv-reed",
+          "name": "Tashan Reed",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Tashan Reed\" Raiders"
+        },
+        {
+          "id": "lv-mcfadden",
+          "name": "Ryan McFadden",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Ryan McFadden\" Raiders"
+        },
+        {
+          "id": "lv-bonsignore",
+          "name": "Vincent Bonsignore",
+          "outlet": "Review-Journal",
+          "type": "gnews",
+          "query": "\"Vincent Bonsignore\" Raiders"
+        },
+        {
+          "id": "lv-x",
+          "name": "LV beat (X)",
+          "type": "twitter_search",
+          "query": "tashanreed VinnyBonsignore",
+          "enabled": false
+        }
+      ]
+    },
+    "MIA": {
+      "name": "Miami Dolphins",
+      "sources": [
+        {
+          "id": "mia-blog",
+          "name": "The Phinsider",
+          "type": "rss",
+          "url": "https://www.thephinsider.com/rss/index.xml"
+        },
+        {
+          "id": "mia-jackson",
+          "name": "Barry Jackson",
+          "outlet": "Miami Herald",
+          "type": "gnews",
+          "query": "\"Barry Jackson\" Dolphins"
+        },
+        {
+          "id": "mia-louisjacques",
+          "name": "Marcel Louis-Jacques",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Louis-Jacques\" Dolphins"
+        },
+        {
+          "id": "mia-furones",
+          "name": "David Furones",
+          "outlet": "Sun Sentinel",
+          "type": "gnews",
+          "query": "\"David Furones\" Dolphins"
+        },
+        {
+          "id": "mia-x",
+          "name": "MIA beat (X)",
+          "type": "twitter_search",
+          "query": "flasportsbuzz Marcel_LJ DavidFurones_",
+          "enabled": false
+        }
+      ]
+    },
+    "MIN": {
+      "name": "Minnesota Vikings",
+      "sources": [
+        {
+          "id": "min-blog",
+          "name": "Daily Norseman",
+          "type": "rss",
+          "url": "https://www.dailynorseman.com/rss/index.xml"
+        },
+        {
+          "id": "min-lewis",
+          "name": "Alec Lewis",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Alec Lewis\" Vikings"
+        },
+        {
+          "id": "min-seifert",
+          "name": "Kevin Seifert",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Kevin Seifert\" Vikings"
+        },
+        {
+          "id": "min-goessling",
+          "name": "Ben Goessling",
+          "outlet": "Star Tribune",
+          "type": "gnews",
+          "query": "\"Ben Goessling\" Vikings"
+        },
+        {
+          "id": "min-x",
+          "name": "MIN beat (X)",
+          "type": "twitter_search",
+          "query": "alec_lewis SeifertESPN GoesslingStrib",
+          "enabled": false
+        }
+      ]
+    },
+    "NE": {
+      "name": "New England Patriots",
+      "sources": [
+        {
+          "id": "ne-blog",
+          "name": "Pats Pulpit",
+          "type": "rss",
+          "url": "https://www.patspulpit.com/rss/index.xml"
+        },
+        {
+          "id": "ne-reiss",
+          "name": "Mike Reiss",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Mike Reiss\" Patriots"
+        },
+        {
+          "id": "ne-kyed",
+          "name": "Doug Kyed",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Doug Kyed\" Patriots"
+        },
+        {
+          "id": "ne-guregian",
+          "name": "Karen Guregian",
+          "outlet": "MassLive",
+          "type": "gnews",
+          "query": "\"Karen Guregian\" Patriots"
+        },
+        {
+          "id": "ne-x",
+          "name": "NE beat (X)",
+          "type": "twitter_search",
+          "query": "MikeReiss DougKyed kguregian",
+          "enabled": false
+        }
+      ]
+    },
+    "NO": {
+      "name": "New Orleans Saints",
+      "sources": [
+        {
+          "id": "no-blog",
+          "name": "Canal Street Chronicles",
+          "type": "rss",
+          "url": "https://www.canalstreetchronicles.com/rss/index.xml"
+        },
+        {
+          "id": "no-terrell",
+          "name": "Katherine Terrell",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Katherine Terrell\" Saints"
+        },
+        {
+          "id": "no-holder",
+          "name": "Larry Holder",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Larry Holder\" Saints"
+        },
+        {
+          "id": "no-underhill",
+          "name": "Jeff Duncan",
+          "outlet": "NOLA.com",
+          "type": "gnews",
+          "query": "\"Jeff Duncan\" Saints"
+        },
+        {
+          "id": "no-x",
+          "name": "NO beat (X)",
+          "type": "twitter_search",
+          "query": "Kat_Terrell HolderLarry JeffDuncan_",
+          "enabled": false
+        }
+      ]
+    },
+    "NYG": {
+      "name": "New York Giants",
+      "sources": [
+        {
+          "id": "nyg-blog",
+          "name": "Big Blue View",
+          "type": "rss",
+          "url": "https://www.bigblueview.com/rss/index.xml"
+        },
+        {
+          "id": "nyg-raanan",
+          "name": "Jordan Raanan",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Jordan Raanan\" Giants"
+        },
+        {
+          "id": "nyg-duggan",
+          "name": "Dan Duggan",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Dan Duggan\" Giants"
+        },
+        {
+          "id": "nyg-schwartz",
+          "name": "Paul Schwartz",
+          "outlet": "NY Post",
+          "type": "gnews",
+          "query": "\"Paul Schwartz\" Giants"
+        },
+        {
+          "id": "nyg-x",
+          "name": "NYG beat (X)",
+          "type": "twitter_search",
+          "query": "JordanRaanan DDuggan21 NYPost_Schwartz",
+          "enabled": false
+        }
+      ]
+    },
+    "NYJ": {
+      "name": "New York Jets",
+      "sources": [
+        {
+          "id": "nyj-blog",
+          "name": "Gang Green Nation",
+          "type": "rss",
+          "url": "https://www.ganggreennation.com/rss/index.xml"
+        },
+        {
+          "id": "nyj-cimini",
+          "name": "Rich Cimini",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Rich Cimini\" Jets"
+        },
+        {
+          "id": "nyj-costello",
+          "name": "Brian Costello",
+          "outlet": "NY Post",
+          "type": "gnews",
+          "query": "\"Brian Costello\" Jets"
+        },
+        {
+          "id": "nyj-rosenblatt",
+          "name": "Zack Rosenblatt",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Zack Rosenblatt\" Jets"
+        },
+        {
+          "id": "nyj-x",
+          "name": "NYJ beat (X)",
+          "type": "twitter_search",
+          "query": "RichCimini BrianCoz ZackBlatt",
+          "enabled": false
+        }
+      ]
+    },
+    "PHI": {
+      "name": "Philadelphia Eagles",
+      "sources": [
+        {
+          "id": "phi-blog",
+          "name": "Bleeding Green Nation",
+          "type": "rss",
+          "url": "https://www.bleedinggreennation.com/rss/index.xml"
+        },
+        {
+          "id": "phi-mcmanus",
+          "name": "Tim McManus",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Tim McManus\" Eagles"
+        },
+        {
+          "id": "phi-mclane",
+          "name": "Jeff McLane",
+          "outlet": "Philadelphia Inquirer",
+          "type": "gnews",
+          "query": "\"Jeff McLane\" Eagles"
+        },
+        {
+          "id": "phi-kempski",
+          "name": "Jimmy Kempski",
+          "outlet": "PhillyVoice",
+          "type": "gnews",
+          "query": "\"Jimmy Kempski\" Eagles"
+        },
+        {
+          "id": "phi-x",
+          "name": "PHI beat (X)",
+          "type": "twitter_search",
+          "query": "Tim_McManus Jeff_McLane JimmyKempski",
+          "enabled": false
+        }
+      ]
+    },
+    "PIT": {
+      "name": "Pittsburgh Steelers",
+      "sources": [
+        {
+          "id": "pit-blog",
+          "name": "Behind The Steel Curtain",
+          "type": "rss",
+          "url": "https://www.behindthesteelcurtain.com/rss/index.xml"
+        },
+        {
+          "id": "pit-pryor",
+          "name": "Brooke Pryor",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Brooke Pryor\" Steelers"
+        },
+        {
+          "id": "pit-kaboly",
+          "name": "Mark Kaboly",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Mark Kaboly\" Steelers"
+        },
+        {
+          "id": "pit-dulac",
+          "name": "Gerry Dulac",
+          "outlet": "Post-Gazette",
+          "type": "gnews",
+          "query": "\"Gerry Dulac\" Steelers"
+        },
+        {
+          "id": "pit-x",
+          "name": "PIT beat (X)",
+          "type": "twitter_search",
+          "query": "bepryor MarkKaboly gerrydulac",
+          "enabled": false
+        }
+      ]
+    },
+    "SEA": {
+      "name": "Seattle Seahawks",
+      "sources": [
+        {
+          "id": "sea-blog",
+          "name": "Field Gulls",
+          "type": "rss",
+          "url": "https://www.fieldgulls.com/rss/index.xml"
+        },
+        {
+          "id": "sea-henderson",
+          "name": "Brady Henderson",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Brady Henderson\" Seahawks"
+        },
+        {
+          "id": "sea-dugar",
+          "name": "Michael-Shawn Dugar",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Dugar\" Seahawks"
+        },
+        {
+          "id": "sea-bell",
+          "name": "Gregg Bell",
+          "outlet": "News Tribune",
+          "type": "gnews",
+          "query": "\"Gregg Bell\" Seahawks"
+        },
+        {
+          "id": "sea-x",
+          "name": "SEA beat (X)",
+          "type": "twitter_search",
+          "query": "BradyHenderson MikeDugar gbellseattle",
+          "enabled": false
+        }
+      ]
+    },
+    "SF": {
+      "name": "San Francisco 49ers",
+      "sources": [
+        {
+          "id": "sf-blog",
+          "name": "Niners Nation",
+          "type": "rss",
+          "url": "https://www.ninersnation.com/rss/index.xml"
+        },
+        {
+          "id": "sf-wagoner",
+          "name": "Nick Wagoner",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Nick Wagoner\" 49ers"
+        },
+        {
+          "id": "sf-barrows",
+          "name": "Matt Barrows",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Matt Barrows\" 49ers"
+        },
+        {
+          "id": "sf-inman",
+          "name": "Cam Inman",
+          "outlet": "Mercury News",
+          "type": "gnews",
+          "query": "\"Cam Inman\" 49ers"
+        },
+        {
+          "id": "sf-x",
+          "name": "SF beat (X)",
+          "type": "twitter_search",
+          "query": "nwagoner mattbarrows CamInman",
+          "enabled": false
+        }
+      ]
+    },
+    "TB": {
+      "name": "Tampa Bay Buccaneers",
+      "sources": [
+        {
+          "id": "tb-blog",
+          "name": "Bucs Nation",
+          "type": "rss",
+          "url": "https://www.bucsnation.com/rss/index.xml"
+        },
+        {
+          "id": "tb-laine",
+          "name": "Jenna Laine",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Jenna Laine\" Buccaneers"
+        },
+        {
+          "id": "tb-auman",
+          "name": "Greg Auman",
+          "outlet": "Fox Sports",
+          "type": "gnews",
+          "query": "\"Greg Auman\" Buccaneers"
+        },
+        {
+          "id": "tb-stroud",
+          "name": "Rick Stroud",
+          "outlet": "Tampa Bay Times",
+          "type": "gnews",
+          "query": "\"Rick Stroud\" Buccaneers"
+        },
+        {
+          "id": "tb-x",
+          "name": "TB beat (X)",
+          "type": "twitter_search",
+          "query": "JennaLaineESPN gregauman NFLSTROUD",
+          "enabled": false
+        }
+      ]
+    },
+    "TEN": {
+      "name": "Tennessee Titans",
+      "sources": [
+        {
+          "id": "ten-blog",
+          "name": "Music City Miracles",
+          "type": "rss",
+          "url": "https://www.musiccitymiracles.com/rss/index.xml"
+        },
+        {
+          "id": "ten-davenport",
+          "name": "Turron Davenport",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"Turron Davenport\" Titans"
+        },
+        {
+          "id": "ten-rexrode",
+          "name": "Joe Rexrode",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Joe Rexrode\" Titans"
+        },
+        {
+          "id": "ten-suss",
+          "name": "Nick Suss",
+          "outlet": "The Tennessean",
+          "type": "gnews",
+          "query": "\"Nick Suss\" Titans"
+        },
+        {
+          "id": "ten-x",
+          "name": "TEN beat (X)",
+          "type": "twitter_search",
+          "query": "TDavenport_NFL joerexrode nicksuss",
+          "enabled": false
+        }
+      ]
+    },
+    "WAS": {
+      "name": "Washington Commanders",
+      "sources": [
+        {
+          "id": "was-blog",
+          "name": "Hogs Haven",
+          "type": "rss",
+          "url": "https://www.hogshaven.com/rss/index.xml"
+        },
+        {
+          "id": "was-keim",
+          "name": "John Keim",
+          "outlet": "ESPN",
+          "type": "gnews",
+          "query": "\"John Keim\" Commanders"
+        },
+        {
+          "id": "was-standig",
+          "name": "Ben Standig",
+          "outlet": "The Athletic",
+          "type": "gnews",
+          "query": "\"Ben Standig\" Commanders"
+        },
+        {
+          "id": "was-jhabvala",
+          "name": "Nicki Jhabvala",
+          "outlet": "Washington Post",
+          "type": "gnews",
+          "query": "\"Nicki Jhabvala\" Commanders"
+        },
+        {
+          "id": "was-x",
+          "name": "WAS beat (X)",
+          "type": "twitter_search",
+          "query": "john_keim BenStandig NickiJhabvala",
+          "enabled": false
+        }
+      ]
+    }
   }
 }

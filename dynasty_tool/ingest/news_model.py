@@ -35,7 +35,7 @@ PACKAGED_FEEDS = PKG_ROOT / "feeds.json"
 # Validating ids as slugs up front makes that collision impossible.
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
-KNOWN_KINDS = {"rss", "gnews", "bluesky", "twitter"}
+KNOWN_KINDS = {"rss", "gnews", "bluesky", "twitter", "twitter_search"}
 
 
 @dataclass(frozen=True)
