@@ -54,6 +54,7 @@ class FitResult:
     n: int
     auc: float
     base_rate: float
+    dropped: tuple[str, ...] = ()   # requested but entirely absent from the data
 
     def importance(self) -> list[tuple[str, float]]:
         """Coefficients as shares of total absolute weight — 'what the model
@@ -126,9 +127,29 @@ def _combine_index(combine_rows: Iterable[dict]) -> dict[str, dict]:
     return out
 
 
-def _athletic(rec: dict, weight_lbs: float) -> dict:
-    ht = _fnum(rec.get("ht"))
-    wt = _fnum(rec.get("wt"), weight_lbs)
+def height_inches(value) -> float:
+    """nflverse publishes combine height as feet-inches (``"6-4"``), inherited
+    from PFR's tables — every one of the 8,939 rows carries the dash.
+
+    Passing that straight to float() raises, which is how ``bmi`` silently became
+    an all-NaN column and got zero weight in every model fit. Accepts both the
+    dashed form and a plain inches number.
+    """
+    if value is None:
+        return np.nan
+    s = str(value).strip()
+    if "-" in s:
+        feet, _, inches = s.partition("-")
+        f, i = _fnum(feet), _fnum(inches)
+        return f * 12.0 + i if np.isfinite(f) and np.isfinite(i) else np.nan
+    return _fnum(s)
+
+
+def _athletic(rec: dict) -> dict:
+    """Combine measurables. Weight comes from the combine row — draft_picks has
+    no ``wt`` column, so the old fallback through it was permanently dead."""
+    ht = height_inches(rec.get("ht"))
+    wt = _fnum(rec.get("wt"))
     bmi = (703.0 * wt / (ht * ht)) if np.isfinite(ht) and ht > 0 and np.isfinite(wt) else np.nan
     return {"forty": _fnum(rec.get("forty")), "bmi": bmi,
             "vertical": _fnum(rec.get("vertical")),
@@ -174,9 +195,26 @@ def build_rows(draft_rows: Iterable[dict], combine_rows: Iterable[dict],
             "breakout": _fnum(c.get("breakout")),
             "pedigree": _fnum(c.get("pedigree")),
         }
-        row.update(_athletic(rec, _fnum(r.get("wt"), np.nan)))
+        row.update(_athletic(rec))
         out.append(row)
     return out
+
+
+def live_features(rows: Sequence[dict], features: Sequence[str]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(features with real data, features that are entirely missing).
+
+    A column with no finite value anywhere gets median-imputed to a constant,
+    which standardizes to all-zeros, which makes its gradient identically zero —
+    so it trains to weight 0.000 and then *renders in the UI as a real feature
+    that the model decided not to use*. That is indistinguishable from a genuine
+    finding and it is exactly how four dead features shipped unnoticed. Drop them
+    instead, and tell the caller which.
+    """
+    live, dead = [], []
+    for f in features:
+        vals = np.array([_fnum(r.get(f)) for r in rows], dtype=float)
+        (live if np.isfinite(vals).any() else dead).append(f)
+    return tuple(live), tuple(dead)
 
 
 def matrix(rows: Sequence[dict], features: Sequence[str]) -> np.ndarray:
@@ -207,7 +245,9 @@ def fit(rows: Sequence[dict], features: Sequence[str] = ROOKIE_FEATURES,
     labelled = [r for r in rows if r.get("label") in (0, 1)]
     if len(labelled) < 30:
         raise ValueError(f"not enough labelled rows to fit ({len(labelled)})")
-    feats = tuple(features)
+    feats, dead = live_features(labelled, features)
+    if not feats:
+        raise ValueError("every requested feature is missing from the data")
     X = matrix(labelled, feats)
     y = np.array([float(r["label"]) for r in labelled])
 
@@ -225,7 +265,7 @@ def fit(rows: Sequence[dict], features: Sequence[str] = ROOKIE_FEATURES,
         b -= lr * float(err.mean())
 
     res = FitResult(features=feats, weights=w, intercept=b, mu=mu, sigma=sigma,
-                    n=len(y), auc=0.0, base_rate=float(y.mean()))
+                    n=len(y), auc=0.0, base_rate=float(y.mean()), dropped=dead)
     res.auc = auc(y, res.predict(X))
     return res
 

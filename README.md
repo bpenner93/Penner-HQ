@@ -59,6 +59,17 @@ separate on purpose:
   the pick pricing: a class the board likes that the market hasn't priced yet
   is when to buy picks.
 
+**👥 My Team → Usage** — snap %, route participation and **targets per route
+run** for your players, plus a league-wide leaderboard marking `★ yours` and
+`✅ FREE`. TPRR is the one to watch: it separates "he's on the field" from "the
+offence looks for him", and it stabilises far sooner than target share.
+
+Routes come from nflverse participation (who was on the field for each dropback),
+not PFF's charted routes — close for receivers, **generous for TEs and backs**,
+who are credited a route on snaps they spent blocking. Validated against 2023:
+Tyreek Hill 0.333 TPRR, Davante Adams 0.291, Justin Jefferson 0.256, all within a
+few percent of published figures.
+
 ### Optional keys (all features work without them)
 
 Add to **Settings → Secrets** on Streamlit Cloud, or `.streamlit/secrets.toml`

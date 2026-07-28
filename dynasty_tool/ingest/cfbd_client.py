@@ -23,6 +23,8 @@ UA = "Penner-HQ/1.0 (+https://github.com/bpenner93/Penner-HQ)"
 
 
 class CfbdClient:
+    EMPTY_TTL_HOURS = 0.5      # how long a [] response is allowed to stick
+
     def __init__(self, api_key: str, cache: DiskCache,
                  session: Optional[requests.Session] = None,
                  timeout: float = 30.0) -> None:
@@ -40,7 +42,13 @@ class CfbdClient:
         key = f"cfbd__{path.strip('/').replace('/', '__')}__{stamp}.json"
         if self.cache.fresh(key, max_age_hours):
             try:
-                return self.cache.get_json(key)
+                cached = self.cache.get_json(key)
+                # An empty result is usually "CFBD hasn't populated this season
+                # yet", not a fact. Caching that for 24h (30 days for recruits)
+                # pins a blank page in place with no way to bust it from the UI,
+                # so empties get a deliberately short life.
+                if cached or self.cache.fresh(key, self.EMPTY_TTL_HOURS):
+                    return cached
             except Exception:
                 pass
         r = self.session.get(
@@ -69,4 +77,18 @@ class CfbdClient:
     def recruits(self, year: int) -> list[dict]:
         """One recruiting class. Immutable once signed, so cached for a month."""
         return self._get("recruiting/players", {"year": int(year)},
+                         max_age_hours=24 * 30) or []
+
+    def draft_picks(self, year: int) -> list[dict]:
+        """NFL draft picks carrying ``collegeAthleteId`` — the bridge that lets
+        college production join nflverse by draft position instead of by name."""
+        return self._get("draft/picks", {"year": int(year)},
+                         max_age_hours=24 * 30) or []
+
+    def player_season_stats(self, year: int, category: str = "receiving") -> list[dict]:
+        """League-wide season stats in CFBD's long format (one row per stat
+        type). One request covers every player, which is why the whole feature
+        costs ~1 call per season rather than one per team."""
+        return self._get("stats/player/season",
+                         {"year": int(year), "category": str(category)},
                          max_age_hours=24 * 30) or []

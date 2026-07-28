@@ -371,8 +371,106 @@ def sleeper_trending(kind: str, hours: int, limit: int):
             for r in rows if r.get("player_id")]
 
 
+@st.cache_data(ttl=12 * 3600, show_spinner=False)
+def usage_season(year: int):
+    """Route participation + snap share for one season, keyed by sleeper_id.
+
+    Every join here is by id — sleeper -> gsis -> pfr comes straight out of
+    DynastyProcess's db_playerids, which the app already downloads for values.
+    """
+    from dynasty_tool.analysis import usage as usg
+    from dynasty_tool.ingest import usage_client as uc
+    cache = DiskCache(dt.CACHE_DIR)
+    _players, _picks, ids = dp_frames()
+    id_rows = ids.to_dict("records")
+    pfr2gsis = usg.crosswalk(id_rows, "pfr_id", "gsis_id")
+    gsis2sleeper = usg.crosswalk(id_rows, "gsis_id", "sleeper_id")
+
+    part = uc.participation_summary(int(year), cache)
+    snaps = usg.aggregate_snaps(uc.snap_counts(int(year), cache), pfr2gsis)
+    try:
+        targets = uc.season_targets(int(year), cache)
+    except Exception:
+        targets = {}
+    built = usg.build_usage(part.get("routes") or {}, part.get("team_dropbacks") or {},
+                            part.get("teams") or {}, snaps, targets)
+    ok, note = usg.looks_sane(built)
+
+    # Participation covers all 11 players on the field, so offensive linemen sit
+    # at ~100% route share and would otherwise own every leaderboard. Names and
+    # positions come from the same id file, not from the league bundle, which
+    # only knows about players someone in this league rosters.
+    meta = {}
+    for r in id_rows:
+        g = str(r.get("gsis_id") or "").strip()
+        if g and g not in ("NA", "nan"):
+            meta.setdefault(g, {"name": r.get("name"),
+                                "position": str(r.get("position") or "").upper()})
+    # QBs are on the field for every dropback by definition, so they sit at 100%
+    # route share and would top the board with a tgt/route of 0.000. These are
+    # receiving-usage metrics; quarterbacks don't belong in them.
+    skill = {"RB", "WR", "TE"}
+
+    rows = []
+    for gsis, u in built.items():
+        sid = gsis2sleeper.get(gsis)
+        m = meta.get(gsis) or {}
+        if not sid or m.get("position") not in skill:
+            continue
+        rows.append({"sleeper_id": sid, "name": m.get("name") or sid,
+                     "position": m.get("position"), "routes": u.routes,
+                     "route_pct": u.route_pct, "snap_pct": u.snap_pct,
+                     "tprr": u.tprr, "targets": u.targets, "games": u.games})
+    return rows, {"ok": ok, "note": note, "plays": part.get("plays", 0),
+                  "resolved": len(rows), "total": len(built)}
+
+
 @st.cache_data(ttl=24 * 3600, show_spinner=False)
-def rookie_model(holdout: int, positions: tuple, max_season: int):
+def college_features(_api_key: str, first_year: int, last_year: int):
+    """{cfb_player_id: {dominator, breakout, pedigree}} for the rookie model.
+
+    Bridges CFBD to nflverse on (draft year, overall pick) — exact, no names.
+    Returns ({}, report) without a key so the model simply reports those
+    features as absent instead of training them to a phantom zero weight.
+    """
+    from dynasty_tool.analysis import college_features as cfeat
+    from dynasty_tool.ingest.cfbd_client import CfbdClient
+    from dynasty_tool.ingest import nflverse_client as nv
+    if not _api_key:
+        return {}, {"skipped": "no CFBD key"}
+    cache = DiskCache(dt.CACHE_DIR)
+    client = CfbdClient(_api_key, cache)
+    years = range(int(first_year), int(last_year) + 1)
+
+    stats, picks, recruits = [], [], []
+    for y in years:
+        for bucket, call in ((stats, lambda yy=y: client.player_season_stats(yy)),
+                             (picks, lambda yy=y: client.draft_picks(yy)),
+                             (recruits, lambda yy=y: client.recruits(yy - 3))):
+            try:
+                bucket.extend(call() or [])
+            except Exception:
+                continue          # one bad season must not blank the feature
+
+    pivot = cfeat.pivot_season_stats(stats)
+    dom = cfeat.dominators(pivot)
+    positions = {pid: "" for (_s, pid) in pivot}
+    birth = {}
+    ped = {}
+    for r in recruits:
+        aid = str(r.get("athleteId") or "").strip()
+        if aid and r.get("rating"):
+            ped[aid] = float(r["rating"])
+    bridge, brep = cfeat.draft_bridge(picks, nv.draft_picks(cache))
+    breakout = cfeat.breakout_ages(dom, pivot, birth, positions)
+    feats, rep = cfeat.build_college_features(dom, breakout, ped, bridge)
+    rep.update(brep)
+    return feats, rep
+
+
+@st.cache_data(ttl=24 * 3600, show_spinner=False)
+def rookie_model(holdout: int, positions: tuple, max_season: int,
+                 _cfbd_key: str = ""):
     """Train the hit-rate model on every skill player drafted since 2010.
 
     Everything joins on ids (cfb_player_id / pfr_id), never on names. Returns
@@ -384,8 +482,9 @@ def rookie_model(holdout: int, positions: tuple, max_season: int):
     cache = DiskCache(dt.CACHE_DIR)
     draft = [d for d in nv.draft_picks(cache)
              if str(d.get("season") or "").isdigit() and int(d["season"]) >= 2010]
-    rows = rmod.build_rows(draft, nv.combine(cache), positions=positions,
-                           max_season=int(max_season))
+    college, _crep = college_features(_cfbd_key, 2010, int(max_season))
+    rows = rmod.build_rows(draft, nv.combine(cache), college=college or None,
+                           positions=positions, max_season=int(max_season))
     fit_r, oos_r = rmod.fit_holdout(rows, rmod.ROOKIE_FEATURES,
                                     holdout_seasons=int(holdout))
     fit_d, oos_d = rmod.fit_holdout(rows, rmod.DEVY_FEATURES,
@@ -1082,13 +1181,20 @@ elif page == "Movers":
                                  value=int(st.session_state.season) - 1)
             pos = d2.multiselect("Positions", list(dvy.DEVY_POSITIONS),
                                  default=list(dvy.DEVY_POSITIONS))
-            if st.button("Build devy board", type="primary"):
-                st.session_state["_devy_on"] = int(yr)
+            b1, b2 = st.columns([1, 1])
+            if b1.button("Build devy board", type="primary"):
+                # Both inputs are captured on click. Reading `pos` live meant
+                # toggling a position silently rebuilt the board without the
+                # button, defeating the gate.
+                st.session_state["_devy_on"] = (int(yr), tuple(pos))
+            if st.session_state.get("_devy_on") and b2.button("Clear"):
+                st.session_state.pop("_devy_on", None)
+                st.rerun()
             if st.session_state.get("_devy_on"):
-                y = int(st.session_state["_devy_on"])
+                y, built_pos = st.session_state["_devy_on"]
                 try:
                     with st.spinner(f"Pulling {y} college usage and recruiting…"):
-                        prospects, rep = devy_board(cfbd_key, y, tuple(pos))
+                        prospects, rep = devy_board(cfbd_key, y, tuple(built_pos))
                 except Exception as e:
                     st.error(f"CFBD unavailable: {e}")
                     prospects, rep = [], {}
@@ -1154,7 +1260,7 @@ elif page == "Movers":
             try:
                 with st.spinner("Pulling nflverse draft + combine and fitting…"):
                     fit_r, oos_r, fit_d, oos_d, rows = rookie_model(
-                        h, ("WR", "RB", "TE"), ms)
+                        h, ("WR", "RB", "TE"), ms, secret("CFBD_API_KEY"))
             except Exception as e:
                 st.error(f"Couldn't train: {e}")
                 fit_r = None
@@ -1166,6 +1272,15 @@ elif page == "Movers":
                 tile(k3, "devy AUC", f"{oos_d:.3f}", "no draft capital")
                 tile(k4, "base hit rate", f"{fit_r.base_rate:.0%}",
                      "of drafted skill players")
+
+                if fit_r.dropped or fit_d.dropped:
+                    missing = sorted(set(fit_r.dropped) | set(fit_d.dropped))
+                    st.warning(
+                        f"Dropped from the fit — no data at all: **{', '.join(missing)}**. "
+                        "These are college features; add `CFBD_API_KEY` to Streamlit "
+                        "secrets to populate them. They are excluded rather than "
+                        "shown at weight 0.000, which would read as 'the model "
+                        "considered it and decided it didn't matter'.")
 
                 st.markdown("<div class='hq-h'>What the model learned</div>",
                             unsafe_allow_html=True)
@@ -1295,6 +1410,80 @@ elif page == "My Team":
              if p.sleeper_id not in {q.sleeper_id for _, q in me.starters}]
     with st.expander(f"Bench ({len(bench)})"):
         show_roster_table(roster_df(me, [("BN", p) for p in bench]))
+
+    # -- how they're actually being used ------------------------------------
+    st.markdown("<div class='hq-h'>Usage — snaps, routes, targets per route</div>",
+                unsafe_allow_html=True)
+    st.caption("Targets per route run is the one to watch: it separates "
+               "\"he's on the field\" from \"the offence looks for him\", and it "
+               "stabilises far sooner than target share.")
+    u_year = st.number_input("Season", 2019, 2030,
+                             value=max(2019, int(st.session_state.season) - 1),
+                             key="_usage_year")
+    if st.button("Load usage data", key="_usage_go"):
+        st.session_state["_usage_on"] = int(u_year)
+    if st.session_state.get("_usage_on"):
+        uy = int(st.session_state["_usage_on"])
+        try:
+            with st.spinner(f"Pulling {uy} participation and snap counts…"):
+                urows, urep = usage_season(uy)
+        except Exception as e:
+            st.error(f"Usage data unavailable: {e}")
+            urows, urep = [], {}
+        if urows:
+            by_sid = {str(r["sleeper_id"]): r for r in urows}
+            mine_rows = []
+            for p in sorted(me.players, key=lambda x: x.value, reverse=True):
+                r = by_sid.get(str(p.sleeper_id))
+                if not r:
+                    continue
+                mine_rows.append({
+                    "": headshot_for(p.sleeper_id, bundle) or "",
+                    "player": p.name, "pos": p.pos,
+                    "snap %": round(r["snap_pct"] * 100),
+                    "route %": round(r["route_pct"] * 100),
+                    "routes": r["routes"], "tgts": r["targets"],
+                    "tgt/route": round(r["tprr"], 3) or None,
+                })
+            if mine_rows:
+                show_roster_table(pd.DataFrame(mine_rows))
+                st.markdown(
+                    "<div class='hq-note'>A route here means <i>on the field for "
+                    "a dropback</i> — nflverse publishes participation, not "
+                    "charted routes. Close for receivers; <b>generous for TEs and "
+                    "backs</b>, who are credited a route on snaps they spent "
+                    "blocking, so read their tgt/route as conservative."
+                    "</div>", unsafe_allow_html=True)
+            else:
+                st.caption("None of your players have usage rows for that season.")
+
+            st.markdown("<div class='hq-h'>League leaderboard</div>",
+                        unsafe_allow_html=True)
+            metric = st.radio("Rank by", ["route_pct", "tprr", "snap_pct", "routes"],
+                              horizontal=True, key="_usage_metric",
+                              format_func=lambda m: {"route_pct": "route %",
+                                                     "tprr": "tgt/route",
+                                                     "snap_pct": "snap %",
+                                                     "routes": "routes"}[m])
+            mine_ids = {str(p.sleeper_id) for p in me.players}
+            free_ids = {str(a.sleeper_id) for a in (A.available or [])}
+            board = [r for r in urows if r["routes"] >= 50]
+            board.sort(key=lambda r: r[metric], reverse=True)
+            st.dataframe(pd.DataFrame([{
+                "": wh.headshot_url(str(r["sleeper_id"])),
+                "who": ("★ yours" if str(r["sleeper_id"]) in mine_ids
+                        else "✅ FREE" if str(r["sleeper_id"]) in free_ids else ""),
+                "player": r["name"], "pos": r["position"],
+                "snap %": round(r["snap_pct"] * 100),
+                "route %": round(r["route_pct"] * 100),
+                "routes": r["routes"], "tgt/route": round(r["tprr"], 3),
+            } for r in board[:40]]), hide_index=True, width="stretch",
+                column_config={"": st.column_config.ImageColumn("", width=42)})
+            st.caption(
+                f"{urep.get('plays', 0):,} plays · {urep.get('resolved', 0):,} of "
+                f"{urep.get('total', 0):,} players resolved to a Sleeper id · "
+                f"sanity: {urep.get('note', '')}"
+                + ("" if urep.get("ok") else "  ⚠️ route counting looks off"))
 
     st.markdown("<div class='hq-h'>Player profile</div>", unsafe_allow_html=True)
     order = [p for _, p in me.starters] + bench
